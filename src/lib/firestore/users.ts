@@ -31,8 +31,8 @@ export async function createUser(
   });
 }
 
-export async function updateUserPhone(uid: string, phone: string): Promise<void> {
-  await updateDoc(doc(db, "users", uid), { phone, phoneVerified: true });
+export async function updateUserPhone(uid: string, phone: string, verified = true): Promise<void> {
+  await updateDoc(doc(db, "users", uid), { phone, phoneVerified: verified });
 }
 
 export async function getAllClients(): Promise<AppUser[]> {

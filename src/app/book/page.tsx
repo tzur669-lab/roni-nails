@@ -36,11 +36,12 @@ export default function BookPage() {
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
+  const [slotOffset, setSlotOffset] = useState(0);
 
-  const days = getNextDays(30);
+  const days = getNextDays(45);
 
   useEffect(() => {
-    getServices(true).then(setServices);
+    getServices(true).then(setServices).catch(console.error);
   }, []);
 
   useEffect(() => {
@@ -59,12 +60,13 @@ export default function BookPage() {
         store.selectedService!.duration,
         rules,
         blocked,
-        existing
+        existing,
+        slotOffset
       );
       setSlots(generated);
       setLoadingSlots(false);
     });
-  }, [store.selectedService, store.selectedDate]);
+  }, [store.selectedService, store.selectedDate, slotOffset]);
 
   async function submit(guestInfo?: { name: string; phone: string }) {
     if (!store.selectedService || !store.selectedStartTime || !store.selectedEndTime) return;
@@ -214,6 +216,8 @@ export default function BookPage() {
                     slots={slots}
                     selectedStart={store.selectedStartTime}
                     onSelect={store.setTimeSlot}
+                    slotOffset={slotOffset}
+                    onToggleOffset={() => setSlotOffset((prev) => (prev === 0 ? 5 : 0))}
                   />
                 )}
               </>

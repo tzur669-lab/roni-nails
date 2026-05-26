@@ -1,6 +1,8 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { setPersistence, browserLocalStorage, browserSessionStorage } from "firebase/auth";
+import { auth } from "@/lib/firebase";
 import { useAuth } from "@/hooks/useAuth";
 
 export default function LoginPage() {
@@ -12,13 +14,19 @@ export default function LoginPage() {
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
+
+  async function applyPersistence() {
+    await setPersistence(auth, rememberMe ? browserLocalStorage : browserSessionStorage);
+  }
 
   async function handleGoogle() {
     setLoading(true);
     try {
+      await applyPersistence();
       await signInWithGoogle();
       router.push("/");
-    } catch (e: unknown) {
+    } catch {
       setError("שגיאה בהתחברות עם Google");
     } finally {
       setLoading(false);
@@ -30,13 +38,14 @@ export default function LoginPage() {
     setLoading(true);
     setError("");
     try {
+      await applyPersistence();
       if (mode === "login") {
         await signInWithEmail(email, password);
       } else {
         await signUpWithEmail(email, password, name);
       }
       router.push("/");
-    } catch (e: unknown) {
+    } catch {
       setError(mode === "login" ? "אימייל או סיסמה שגויים" : "שגיאה ביצירת חשבון");
     } finally {
       setLoading(false);
@@ -117,6 +126,28 @@ export default function LoginPage() {
             className="w-full px-4 py-3 rounded-2xl border"
             style={{ borderColor: "var(--border-color)", background: "var(--accent)" }}
           />
+
+          {/* Remember Me */}
+          <label className="flex items-center gap-2 cursor-pointer select-none" dir="rtl">
+            <div
+              onClick={() => setRememberMe((v) => !v)}
+              className="w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-all"
+              style={{
+                borderColor: rememberMe ? "var(--primary)" : "var(--border-color)",
+                background: rememberMe ? "var(--primary)" : "transparent",
+              }}
+            >
+              {rememberMe && (
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                  <path d="M2 6l3 3 5-5" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              )}
+            </div>
+            <span className="text-sm" style={{ color: "var(--muted-foreground)" }}>
+              זכור אותי
+            </span>
+          </label>
+
           {error && (
             <p className="text-sm text-center" style={{ color: "#e53e3e" }}>{error}</p>
           )}
