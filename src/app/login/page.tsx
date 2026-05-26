@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { setPersistence, browserLocalStorage, browserSessionStorage } from "firebase/auth";
+import { setPersistence, browserLocalStoragePersistence, browserSessionPersistence } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -17,7 +17,7 @@ export default function LoginPage() {
   const [rememberMe, setRememberMe] = useState(true);
 
   async function applyPersistence() {
-    await setPersistence(auth, rememberMe ? browserLocalStorage : browserSessionStorage);
+    await setPersistence(auth, rememberMe ? browserLocalStoragePersistence : browserSessionPersistence);
   }
 
   async function handleGoogle() {
