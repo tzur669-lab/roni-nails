@@ -87,6 +87,7 @@ export interface ClinicSettings {
   whatsappNumber: string;
   instagramUrl: string;
   googleMapsUrl: string;
+  homeImageUrl?: string;
   openingHours: {
     sun: DayOpeningHours;
     mon: DayOpeningHours;

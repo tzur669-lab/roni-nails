@@ -100,7 +100,7 @@ export function BookingConfirmation({ service, startTime, endTime, clientName, c
           הוסף ליומן Google
         </a>
         <p className="text-xs text-center mt-3" style={{ color: "var(--muted-foreground)" }}>
-          ⏳ ממתין לאישור רוני — תקבלי הודעה בוואטסאפ
+          ⏳ ממתין לאישור של רני — תקבלי הודעה בוואטסאפ
         </p>
       </div>
     </div>

@@ -1,15 +1,16 @@
 "use client";
 import { useEffect, useState } from "react";
-import { getAllClients, addClientNote } from "@/lib/firestore/users";
+import { getAllClients, addClientNote, getClientNotes } from "@/lib/firestore/users";
 import { getClientAppointments } from "@/lib/firestore/appointments";
 import { useAuth } from "@/hooks/useAuth";
-import type { AppUser, Appointment } from "@/types";
+import type { AppUser, Appointment, ClientNote } from "@/types";
 
 export default function AdminClientsPage() {
   const { user } = useAuth();
   const [clients, setClients] = useState<AppUser[]>([]);
   const [selected, setSelected] = useState<AppUser | null>(null);
   const [appts, setAppts] = useState<Appointment[]>([]);
+  const [notes, setNotes] = useState<ClientNote[]>([]);
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -17,14 +18,19 @@ export default function AdminClientsPage() {
 
   async function openClient(c: AppUser) {
     setSelected(c);
-    const a = await getClientAppointments(c.id);
+    const [a, n] = await Promise.all([
+      getClientAppointments(c.id),
+      getClientNotes(c.id),
+    ]);
     setAppts(a);
+    setNotes(n);
   }
 
   async function saveNote() {
     if (!note.trim() || !selected || !user) return;
     setSaving(true);
-    await addClientNote(selected.id, note.trim(), user.uid);
+    const newNote = await addClientNote(selected.id, note.trim(), user.uid);
+    setNotes((prev) => [{ ...newNote, createdAt: { toDate: () => new Date() } as any }, ...prev]);
     setNote("");
     setSaving(false);
   }
@@ -35,13 +41,32 @@ export default function AdminClientsPage() {
 
       {selected ? (
         <div>
-          <button onClick={() => setSelected(null)} className="text-sm mb-4 flex items-center gap-1" style={{ color: "var(--primary-dark)" }}>
+          <button
+            onClick={() => { setSelected(null); setNotes([]); setAppts([]); }}
+            className="text-sm mb-4 flex items-center gap-1"
+            style={{ color: "var(--primary-dark)" }}
+          >
             ← חזרה לרשימה
           </button>
+
+          {/* Client info card with notes */}
           <div className="p-5 rounded-2xl border mb-4" style={{ borderColor: "var(--border-color)", background: "var(--surface)" }}>
             <p className="font-semibold" style={{ color: "var(--foreground)" }}>{selected.name}</p>
             <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>{selected.phone}</p>
             <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>{selected.email}</p>
+
+            {notes.length > 0 && (
+              <div className="mt-3 pt-3 border-t" style={{ borderColor: "var(--border-color)" }}>
+                <p className="text-xs font-semibold mb-2" style={{ color: "var(--muted-foreground)" }}>הערות</p>
+                <div className="flex flex-col gap-1.5">
+                  {notes.map((n) => (
+                    <p key={n.id} className="text-sm leading-relaxed" style={{ color: "var(--foreground)" }}>
+                      • {n.note}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <h2 className="text-sm font-semibold mb-2" style={{ color: "var(--muted-foreground)" }}>תורים</h2>
@@ -67,6 +92,7 @@ export default function AdminClientsPage() {
             <input
               value={note}
               onChange={(e) => setNote(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && saveNote()}
               placeholder="הערה על הלקוחה..."
               className="flex-1 px-4 py-3 rounded-xl border"
               style={{ borderColor: "var(--border-color)", background: "var(--accent)" }}

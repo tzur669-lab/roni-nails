@@ -1,9 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
 import { getClinicSettings } from "@/lib/firestore/settings";
+import { getPaymentSettings } from "@/lib/firestore/settings";
 import { buildWhatsAppContactLink } from "@/lib/whatsapp";
 import { AppShell } from "@/components/shared/AppShell";
-import type { ClinicSettings } from "@/types";
+import type { ClinicSettings, PaymentSettings } from "@/types";
 
 const DAY_LABELS: Record<string, string> = {
   sun: "ראשון", mon: "שני", tue: "שלישי",
@@ -13,10 +14,15 @@ const DAY_ORDER = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 
 export default function ClinicPage() {
   const [clinic, setClinic] = useState<ClinicSettings | null>(null);
+  const [payment, setPayment] = useState<PaymentSettings | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getClinicSettings().then((c) => { setClinic(c); setLoading(false); });
+    Promise.all([getClinicSettings(), getPaymentSettings()]).then(([c, p]) => {
+      setClinic(c);
+      setPayment(p);
+      setLoading(false);
+    });
   }, []);
 
   if (loading) {
@@ -36,6 +42,8 @@ export default function ClinicPage() {
       </AppShell>
     );
   }
+
+  const hasPayment = payment && (payment.bitPhoneNumber || payment.payboxPhoneNumber);
 
   return (
     <AppShell>
@@ -86,9 +94,17 @@ export default function ClinicPage() {
                 className="flex items-center justify-center gap-2 w-full py-3 rounded-xl font-medium text-sm"
                 style={{ background: "var(--accent)", color: "var(--primary-dark)", border: "1px solid var(--border-color)" }}
               >
-                <span>🗺️</span> פתח במפות גוגל
+                <span>🗺️</span> פתח בגוגל מפות
               </a>
             )
+          )}
+          {/* Home / exterior photo */}
+          {clinic.homeImageUrl && (
+            <img
+              src={clinic.homeImageUrl}
+              alt="תמונת המקום"
+              className="w-full h-52 object-cover rounded-2xl mt-3"
+            />
           )}
         </div>
 
@@ -112,6 +128,42 @@ export default function ClinicPage() {
             })}
           </div>
         </div>
+
+        {/* Payment */}
+        {hasPayment && (
+          <div
+            className="p-5 rounded-2xl border mb-4"
+            style={{ borderColor: "var(--border-color)", background: "var(--surface)" }}
+          >
+            <h2 className="text-sm font-semibold mb-3" style={{ color: "var(--foreground)" }}>💳 תשלום</h2>
+            <div className="flex flex-col gap-4">
+              {payment!.bitPhoneNumber && (
+                <div>
+                  <p className="text-xs font-medium mb-1" style={{ color: "var(--muted-foreground)" }}>Bit</p>
+                  <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }} dir="ltr">
+                    {payment!.bitPhoneNumber}
+                  </p>
+                  {payment!.bitQrImageUrl && (
+                    <img
+                      src={payment!.bitQrImageUrl}
+                      alt="QR Bit"
+                      className="w-28 h-28 object-contain rounded-xl mt-2 border"
+                      style={{ borderColor: "var(--border-color)" }}
+                    />
+                  )}
+                </div>
+              )}
+              {payment!.payboxPhoneNumber && (
+                <div>
+                  <p className="text-xs font-medium mb-1" style={{ color: "var(--muted-foreground)" }}>Paybox</p>
+                  <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }} dir="ltr">
+                    {payment!.payboxPhoneNumber}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Contact buttons */}
         <div className="flex flex-col gap-3">

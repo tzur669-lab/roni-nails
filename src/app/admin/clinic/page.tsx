@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { getClinicSettings, saveClinicSettings } from "@/lib/firestore/settings";
+import { uploadClinicPhoto } from "@/lib/storage";
 import type { ClinicSettings } from "@/types";
 
 const DEFAULT_HOURS = { open: "09:00", close: "19:00", isOpen: true };
@@ -11,6 +12,7 @@ const DEFAULT: ClinicSettings = {
   whatsappNumber: "",
   instagramUrl: "",
   googleMapsUrl: "",
+  homeImageUrl: "",
   openingHours: {
     sun: { ...DEFAULT_HOURS },
     mon: { ...DEFAULT_HOURS },
@@ -33,6 +35,8 @@ export default function AdminClinicPage() {
   const [clinic, setClinic] = useState<ClinicSettings>(DEFAULT);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
 
   useEffect(() => {
     getClinicSettings().then((c) => { if (c) setClinic(c); });
@@ -60,6 +64,20 @@ export default function AdminClinicPage() {
     }));
   }
 
+  async function handlePhotoFile(file: File) {
+    if (!file.type.startsWith("image/")) return;
+    setUploading(true);
+    try {
+      const url = await uploadClinicPhoto(file);
+      setField("homeImageUrl", url);
+    } catch (err) {
+      console.error("upload failed:", err);
+      alert("שגיאה בהעלאת התמונה. נסי שוב.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
   return (
     <div className="pb-20 md:pb-6">
       <div className="flex justify-between items-center mb-6">
@@ -79,6 +97,72 @@ export default function AdminClinicPage() {
           <Input label="WhatsApp (ללא רווחים, עם קידומת 972)" value={clinic.whatsappNumber} onChange={(v) => setField("whatsappNumber", v)} dir="ltr" />
           <Input label="אינסטגרם URL" value={clinic.instagramUrl} onChange={(v) => setField("instagramUrl", v)} dir="ltr" />
           <Input label="Google Maps URL (קישור רגיל או Embed)" value={clinic.googleMapsUrl} onChange={(v) => setField("googleMapsUrl", v)} dir="ltr" />
+        </Section>
+
+        {/* Home photo section */}
+        <Section title="תמונת המקום">
+          {/* Drag & drop zone */}
+          <div
+            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={async (e) => {
+              e.preventDefault();
+              setDragOver(false);
+              const file = e.dataTransfer.files[0];
+              if (file) await handlePhotoFile(file);
+            }}
+            onClick={() => document.getElementById("home-photo-input")?.click()}
+            className="border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all"
+            style={{
+              borderColor: dragOver ? "var(--primary)" : "var(--border-color)",
+              background: dragOver ? "var(--accent)" : "transparent",
+            }}
+          >
+            <p className="text-2xl mb-2">🖼️</p>
+            <p className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
+              {uploading ? "מעלה תמונה..." : "גרור תמונה לכאן או לחץ לבחירה"}
+            </p>
+            <p className="text-xs mt-1" style={{ color: "var(--muted-foreground)" }}>
+              JPG, PNG, WEBP
+            </p>
+          </div>
+          <input
+            id="home-photo-input"
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={async (e) => {
+              const file = e.target.files?.[0];
+              if (file) await handlePhotoFile(file);
+            }}
+          />
+
+          {/* OR URL input */}
+          <Input
+            label="או הכנס URL של תמונה"
+            value={clinic.homeImageUrl ?? ""}
+            onChange={(v) => setField("homeImageUrl", v)}
+            dir="ltr"
+          />
+
+          {/* Preview */}
+          {clinic.homeImageUrl && (
+            <div className="relative">
+              <img
+                src={clinic.homeImageUrl}
+                alt="תמונת הבית"
+                className="w-full h-44 object-cover rounded-xl border"
+                style={{ borderColor: "var(--border-color)" }}
+              />
+              <button
+                onClick={() => setField("homeImageUrl", "")}
+                className="absolute top-2 left-2 w-7 h-7 rounded-full text-xs font-bold text-white flex items-center justify-center"
+                style={{ background: "#EF4444" }}
+              >
+                ✕
+              </button>
+            </div>
+          )}
         </Section>
 
         <Section title="שעות פעילות">

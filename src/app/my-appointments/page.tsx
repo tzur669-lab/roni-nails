@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
-import { getClientAppointments, cancelAppointment, requestAppointmentChange } from "@/lib/firestore/appointments";
+import { getClientAppointments, cancelAppointment } from "@/lib/firestore/appointments";
 import { AppShell } from "@/components/shared/AppShell";
 import type { Appointment } from "@/types";
 
@@ -42,11 +42,13 @@ export default function MyAppointmentsPage() {
     );
   }
 
+  // Upcoming: future appointments that are not cancelled/rejected
   const upcoming = appointments.filter(
     (a) => a.startTime.toDate() > new Date() && a.status !== "cancelled" && a.status !== "rejected"
   );
+  // History: past non-cancelled appointments + rejected (no cancelled ever shown)
   const past = appointments.filter(
-    (a) => a.startTime.toDate() <= new Date() || a.status === "cancelled" || a.status === "rejected"
+    (a) => a.status !== "cancelled" && (a.startTime.toDate() <= new Date() || a.status === "rejected")
   );
 
   if (!user) {
@@ -109,7 +111,7 @@ export default function MyAppointmentsPage() {
           </>
         )}
 
-        {appointments.length === 0 && (
+        {upcoming.length === 0 && past.length === 0 && (
           <div className="text-center pt-16">
             <div className="text-5xl mb-4">📅</div>
             <p className="text-sm mb-4" style={{ color: "var(--muted-foreground)" }}>
@@ -176,7 +178,7 @@ function AppointmentCard({
 
       {approvedFuture && (
         <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-          לשינוי תור — פנה לרוני ישירות
+          לשינוי תור — פנה לרני ישירות
         </p>
       )}
     </div>

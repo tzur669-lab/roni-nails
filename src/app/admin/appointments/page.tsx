@@ -3,27 +3,39 @@ import { useEffect, useState } from "react";
 import { getAllAppointments, updateAppointmentStatus, cancelAppointment } from "@/lib/firestore/appointments";
 import { getClinicSettings } from "@/lib/firestore/settings";
 import { buildWhatsAppApprovalLink, buildWhatsAppCancellationLink } from "@/lib/whatsapp";
-import type { Appointment, ClinicSettings, AppointmentStatus } from "@/types";
+import type { Appointment, ClinicSettings } from "@/types";
 
+// cancelled is shown as נדחה — only 3 visible statuses
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  pending:          { label: "ממתין",     color: "#F59E0B" },
-  approved:         { label: "מאושר",     color: "#10B981" },
-  rejected:         { label: "נדחה",      color: "#EF4444" },
-  cancelled:        { label: "בוטל",      color: "#9CA3AF" },
-  change_requested: { label: "בקשת שינוי", color: "#8B5CF6" },
+  pending:          { label: "ממתין",  color: "#F59E0B" },
+  change_requested: { label: "ממתין",  color: "#F59E0B" },
+  approved:         { label: "מאושר",  color: "#10B981" },
+  rejected:         { label: "נדחה",   color: "#EF4444" },
+  cancelled:        { label: "נדחה",   color: "#EF4444" },
 };
 
-type FilterStatus = AppointmentStatus | "all";
+type FilterTab = "all" | "pending" | "approved" | "rejected";
+const FILTER_TABS: { value: FilterTab; label: string }[] = [
+  { value: "all",      label: "הכל" },
+  { value: "pending",  label: "ממתין" },
+  { value: "approved", label: "מאושר" },
+  { value: "rejected", label: "נדחה" },
+];
 
 export default function AdminAppointmentsPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [filter, setFilter] = useState<FilterStatus>("all");
+  const [filter, setFilter] = useState<FilterTab>("all");
   const [clinic, setClinic] = useState<ClinicSettings | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     Promise.all([getAllAppointments(), getClinicSettings()]).then(([appts, c]) => {
-      setAppointments(appts);
+      // Show only: future appointments + past within 3 days
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - 3);
+      cutoff.setHours(0, 0, 0, 0);
+      const visible = appts.filter((a) => a.startTime.toDate() >= cutoff);
+      setAppointments(visible); // already sorted newest-first from Firestore
       setClinic(c);
       setLoading(false);
     });
@@ -73,7 +85,14 @@ export default function AdminAppointmentsPage() {
     }
   }
 
-  const filtered = filter === "all" ? appointments : appointments.filter((a) => a.status === filter);
+  // Filter: "נדחה" tab includes both rejected + cancelled
+  const filtered = filter === "all"
+    ? appointments
+    : filter === "rejected"
+      ? appointments.filter((a) => a.status === "rejected" || a.status === "cancelled")
+      : filter === "pending"
+        ? appointments.filter((a) => a.status === "pending" || a.status === "change_requested")
+        : appointments.filter((a) => a.status === filter);
 
   return (
     <div className="pb-20 md:pb-6">
@@ -81,20 +100,20 @@ export default function AdminAppointmentsPage() {
         ניהול תורים
       </h1>
 
-      {/* Filter tabs */}
+      {/* Filter tabs — 3 statuses only */}
       <div className="flex gap-2 overflow-x-auto pb-2 mb-4">
-        {(["all", "pending", "approved", "rejected", "cancelled"] as FilterStatus[]).map((f) => (
+        {FILTER_TABS.map((f) => (
           <button
-            key={f}
-            onClick={() => setFilter(f)}
+            key={f.value}
+            onClick={() => setFilter(f.value)}
             className="flex-shrink-0 px-3 py-1.5 rounded-xl text-xs font-medium border transition-all"
             style={
-              filter === f
+              filter === f.value
                 ? { background: "var(--primary)", color: "white", borderColor: "var(--primary)" }
                 : { background: "var(--surface)", color: "var(--foreground)", borderColor: "var(--border-color)" }
             }
           >
-            {f === "all" ? "הכל" : STATUS_LABELS[f]?.label}
+            {f.label}
           </button>
         ))}
       </div>

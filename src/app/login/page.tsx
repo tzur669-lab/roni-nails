@@ -176,6 +176,14 @@ export default function LoginPage() {
         >
           {mode === "login" ? "אין לך חשבון? הירשמי" : "כבר יש לך חשבון? התחברי"}
         </button>
+
+        <button
+          onClick={() => router.push("/")}
+          className="w-full mt-2 py-3 rounded-2xl text-sm font-medium border transition-all"
+          style={{ borderColor: "var(--border-color)", color: "var(--muted-foreground)" }}
+        >
+          המשך כאורח
+        </button>
       </div>
     </div>
   );

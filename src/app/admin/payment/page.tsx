@@ -91,7 +91,7 @@ export default function AdminPaymentPage() {
 
         <div className="p-5 rounded-2xl border" style={{ borderColor: "var(--border-color)", background: "var(--accent)" }}>
           <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
-            💡 פרטי התשלום יוצגו ללקוחות לאחר אישור התור
+            💡 פרטי התשלום מוצגים ללקוחות בדף "פרטים ומידע"
           </p>
         </div>
       </div>

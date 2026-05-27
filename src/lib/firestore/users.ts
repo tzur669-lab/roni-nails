@@ -7,10 +7,11 @@ import {
   getDocs,
   query,
   where,
+  orderBy,
   serverTimestamp,
 } from "firebase/firestore";
 import { db, ADMIN_UID } from "@/lib/firebase";
-import type { AppUser } from "@/types";
+import type { AppUser, ClientNote } from "@/types";
 
 export async function getUser(uid: string): Promise<AppUser | null> {
   const snap = await getDoc(doc(db, "users", uid));
@@ -45,7 +46,7 @@ export async function addClientNote(
   clientId: string,
   note: string,
   adminId: string
-): Promise<void> {
+): Promise<ClientNote> {
   const ref = doc(collection(db, "clientNotes"));
   await setDoc(ref, {
     clientId,
@@ -53,4 +54,15 @@ export async function addClientNote(
     createdAt: serverTimestamp(),
     updatedBy: adminId,
   });
+  return { id: ref.id, clientId, note, createdAt: null as any, updatedBy: adminId };
+}
+
+export async function getClientNotes(clientId: string): Promise<ClientNote[]> {
+  const q = query(
+    collection(db, "clientNotes"),
+    where("clientId", "==", clientId),
+    orderBy("createdAt", "desc")
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as ClientNote);
 }
