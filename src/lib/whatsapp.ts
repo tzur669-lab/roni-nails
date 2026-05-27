@@ -7,7 +7,7 @@ interface WhatsAppParams {
   serviceName: string;
   startTime: Date;
   endTime: Date;
-  clinicAddress: string;
+  clinicAddress?: string;
 }
 
 export function buildWhatsAppApprovalLink(params: WhatsAppParams): string {
@@ -20,7 +20,7 @@ export function buildWhatsAppApprovalLink(params: WhatsAppParams): string {
   });
 
   const calLink = buildGoogleCalendarLink({
-    title: "תור ללק רני חנימוב",
+    title: "תור רני חנימוב",
     startTime,
     endTime,
     description: `שירות: ${serviceName}`,
@@ -57,6 +57,31 @@ export function buildWhatsAppCancellationLink(params: WhatsAppParams): string {
   const message = [
     `היי ${clientName} 🌸`,
     `לצערנו נאלצנו לבטל את התורה שלך.`,
+    ``,
+    `שירות: ${serviceName}`,
+    `תאריך: ${dateStr}`,
+    `שעה: ${timeStr}`,
+    ``,
+    `ניתן לקבוע תור חדש דרך האפליקציה.`,
+    `מצטערים על אי הנוחות! 💅`,
+  ].join("\n");
+
+  const phone = clientPhone.replace(/\D/g, "").replace(/^0/, "972");
+  return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+}
+
+export function buildWhatsAppRejectionLink(params: Omit<WhatsAppParams, "clinicAddress">): string {
+  const { clientPhone, clientName, serviceName, startTime } = params;
+
+  const dateStr = formatHebrewFullDate(startTime);
+  const timeStr = startTime.toLocaleTimeString("he-IL", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  const message = [
+    `היי ${clientName} 🌸`,
+    `לצערנו הבקשה לתור שלך לא יכולה להתאשר.`,
     ``,
     `שירות: ${serviceName}`,
     `תאריך: ${dateStr}`,

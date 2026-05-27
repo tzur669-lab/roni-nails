@@ -17,7 +17,7 @@ function formatTime(d: Date): string {
 
 export function BookingConfirmation({ service, startTime, endTime, clientName, clinicAddress }: Props) {
   const calendarLink = buildGoogleCalendarLink({
-    title: `תור ללק רני חנימוב — ${service.name}`,
+    title: `תור רני חנימוב — ${service.name}`,
     startTime,
     endTime,
     description: `שירות: ${service.name}${service.price ? ` · מחיר: ₪${service.price}` : ""}`,
@@ -99,9 +99,18 @@ export function BookingConfirmation({ service, startTime, endTime, clientName, c
           </svg>
           הוסף ליומן Google
         </a>
-        <p className="text-xs text-center mt-3" style={{ color: "var(--muted-foreground)" }}>
-          ⏳ ממתין לאישור של רני — תקבלי הודעה בוואטסאפ
-        </p>
+        {/* Waiting banner — prominent */}
+        <div
+          className="mt-4 p-4 rounded-2xl text-center"
+          style={{ background: "#FEF3C7", border: "1.5px solid #F59E0B" }}
+        >
+          <p className="text-base font-bold mb-1" style={{ color: "#92400E" }}>
+            ⏳ ממתין לאישור
+          </p>
+          <p className="text-sm leading-relaxed" style={{ color: "#B45309" }}>
+            רני תאשר את הבקשה ותעדכן אותך בוואטסאפ בהקדם 💬
+          </p>
+        </div>
       </div>
     </div>
   );

@@ -9,7 +9,7 @@ import {
   cancelAppointment,
 } from "@/lib/firestore/appointments";
 import { getClinicSettings } from "@/lib/firestore/settings";
-import { buildWhatsAppApprovalLink, buildWhatsAppCancellationLink } from "@/lib/whatsapp";
+import { buildWhatsAppApprovalLink, buildWhatsAppCancellationLink, buildWhatsAppRejectionLink } from "@/lib/whatsapp";
 import type { Appointment, ClinicSettings } from "@/types";
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
@@ -80,13 +80,21 @@ export default function AdminDashboard() {
     }
   }
 
-  async function reject(id: string) {
-    setLoadingId(id + "-reject");
+  async function reject(appt: Appointment) {
+    setLoadingId(appt.id + "-reject");
     try {
-      await updateAppointmentStatus(id, "rejected");
-      setPending((prev) => prev.filter((a) => a.id !== id));
-      setTodayAppts((prev) => prev.map((a) => (a.id === id ? { ...a, status: "rejected" } : a)));
-      setUpcoming((prev) => prev.filter((a) => a.id !== id));
+      await updateAppointmentStatus(appt.id, "rejected");
+      setPending((prev) => prev.filter((a) => a.id !== appt.id));
+      setTodayAppts((prev) => prev.map((a) => (a.id === appt.id ? { ...a, status: "rejected" } : a)));
+      setUpcoming((prev) => prev.filter((a) => a.id !== appt.id));
+      const link = buildWhatsAppRejectionLink({
+        clientPhone: appt.clientPhone,
+        clientName:  appt.clientName,
+        serviceName: appt.serviceName,
+        startTime:   appt.startTime.toDate(),
+        endTime:     appt.endTime.toDate(),
+      });
+      window.open(link, "_blank");
     } catch (err) {
       console.error("reject failed:", err);
       alert("שגיאה בדחיית התור. נסי שנית.");
@@ -132,10 +140,9 @@ export default function AdminDashboard() {
       </h1>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-3 mb-6">
-        <StatCard label="תורים היום"       value={todayAppts.length}                              icon="📅" />
-        <StatCard label="ממתינים לאישור"   value={pending.length}   icon="⏳" highlight={pending.length > 0} />
-        <StatCard label="מאושרים היום"     value={todayAppts.filter(a => a.status === "approved").length} icon="✅" />
+      <div className="grid grid-cols-2 gap-3 mb-6">
+        <StatCard label="תורים היום"     value={todayAppts.length} icon="📅" />
+        <StatCard label="ממתינים לאישור" value={pending.length}    icon="⏳" highlight={pending.length > 0} />
       </div>
 
       {/* Today schedule */}
@@ -294,7 +301,7 @@ function PendingCard({
 }: {
   appointment: Appointment;
   onApprove:   (a: Appointment) => void;
-  onReject:    (id: string) => void;
+  onReject:    (a: Appointment) => void;
   loadingId:   string | null;
 }) {
   const start       = appointment.startTime.toDate();
@@ -340,12 +347,12 @@ function PendingCard({
           {isApproving ? "..." : "✓ אשר + WhatsApp"}
         </button>
         <button
-          onClick={() => onReject(appointment.id)}
+          onClick={() => onReject(appointment)}
           disabled={isBusy}
           className="flex-1 py-2.5 rounded-xl text-sm font-semibold border-2 disabled:opacity-50"
           style={{ borderColor: "#EF4444", color: "#EF4444" }}
         >
-          {isRejecting ? "..." : "✕ דחה"}
+          {isRejecting ? "..." : "✕ דחה + WhatsApp"}
         </button>
       </div>
     </div>

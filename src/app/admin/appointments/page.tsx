@@ -5,7 +5,7 @@ import {
   migrateFromLegacyCollection, hasLegacyAppointments,
 } from "@/lib/firestore/appointments";
 import { getClinicSettings } from "@/lib/firestore/settings";
-import { buildWhatsAppApprovalLink, buildWhatsAppCancellationLink } from "@/lib/whatsapp";
+import { buildWhatsAppApprovalLink, buildWhatsAppCancellationLink, buildWhatsAppRejectionLink } from "@/lib/whatsapp";
 import type { Appointment, ClinicSettings } from "@/types";
 
 // cancelled is shown as נדחה — only 3 visible statuses
@@ -94,13 +94,21 @@ export default function AdminAppointmentsPage() {
     }
   }
 
-  async function handleReject(id: string) {
-    setLoadingId(id + "-reject");
+  async function handleReject(appt: Appointment) {
+    setLoadingId(appt.id + "-reject");
     try {
-      await updateAppointmentStatus(id, "rejected");
+      await updateAppointmentStatus(appt.id, "rejected");
       setAppointments((prev) =>
-        prev.map((a) => (a.id === id ? { ...a, status: "rejected" } : a))
+        prev.map((a) => (a.id === appt.id ? { ...a, status: "rejected" } : a))
       );
+      const link = buildWhatsAppRejectionLink({
+        clientPhone: appt.clientPhone,
+        clientName:  appt.clientName,
+        serviceName: appt.serviceName,
+        startTime:   appt.startTime.toDate(),
+        endTime:     appt.endTime.toDate(),
+      });
+      window.open(link, "_blank");
     } catch (err) {
       console.error("reject failed:", err);
       alert("שגיאה בדחיית התור. נסי שנית.");
@@ -227,7 +235,7 @@ function AppointmentRow({
 }: {
   appointment: Appointment;
   onApprove:   (a: Appointment) => void;
-  onReject:    (id: string) => void;
+  onReject:    (a: Appointment) => void;
   onCancel:    (a: Appointment) => void;
   loadingId:   string | null;
 }) {
@@ -277,12 +285,12 @@ function AppointmentRow({
             {isApproving ? "..." : "✓ אשר + WhatsApp"}
           </button>
           <button
-            onClick={() => onReject(appointment.id)}
+            onClick={() => onReject(appointment)}
             disabled={isBusy}
             className="flex-1 py-2 rounded-xl text-xs font-semibold border-2 disabled:opacity-50"
             style={{ borderColor: "#EF4444", color: "#EF4444" }}
           >
-            {isRejecting ? "..." : "✕ דחה"}
+            {isRejecting ? "..." : "✕ דחה + WhatsApp"}
           </button>
         </div>
       )}

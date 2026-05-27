@@ -3,8 +3,10 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
 import { getClientAppointments, cancelAppointment } from "@/lib/firestore/appointments";
+import { getClinicSettings } from "@/lib/firestore/settings";
+import { buildWhatsAppContactLink } from "@/lib/whatsapp";
 import { AppShell } from "@/components/shared/AppShell";
-import type { Appointment } from "@/types";
+import type { Appointment, ClinicSettings } from "@/types";
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   pending:          { label: "ממתין לאישור", color: "#F59E0B" },
@@ -24,7 +26,12 @@ function formatDateTime(d: Date): string {
 export default function MyAppointmentsPage() {
   const { user } = useAuth();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [clinic, setClinic] = useState<ClinicSettings | null>(null);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getClinicSettings().then(setClinic);
+  }, []);
 
   useEffect(() => {
     if (!user) { setLoading(false); return; }
@@ -92,7 +99,7 @@ export default function MyAppointmentsPage() {
             </h2>
             <div className="flex flex-col gap-3 mb-8">
               {upcoming.map((a) => (
-                <AppointmentCard key={a.id} appointment={a} onCancel={handleCancel} />
+                <AppointmentCard key={a.id} appointment={a} onCancel={handleCancel} whatsappNumber={clinic?.whatsappNumber} />
               ))}
             </div>
           </>
@@ -105,7 +112,7 @@ export default function MyAppointmentsPage() {
             </h2>
             <div className="flex flex-col gap-3">
               {past.map((a) => (
-                <AppointmentCard key={a.id} appointment={a} onCancel={handleCancel} />
+                <AppointmentCard key={a.id} appointment={a} onCancel={handleCancel} whatsappNumber={clinic?.whatsappNumber} />
               ))}
             </div>
           </>
@@ -134,9 +141,11 @@ export default function MyAppointmentsPage() {
 function AppointmentCard({
   appointment,
   onCancel,
+  whatsappNumber,
 }: {
-  appointment: Appointment;
-  onCancel: (id: string) => void;
+  appointment:    Appointment;
+  onCancel:       (id: string) => void;
+  whatsappNumber?: string;
 }) {
   const st = STATUS_LABELS[appointment.status] ?? { label: appointment.status, color: "#9CA3AF" };
   const start = appointment.startTime.toDate();
@@ -176,9 +185,20 @@ function AppointmentCard({
         </button>
       )}
 
-      {approvedFuture && (
+      {approvedFuture && whatsappNumber && (
+        <a
+          href={buildWhatsAppContactLink(whatsappNumber)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-2 text-xs px-3 py-2 rounded-xl font-semibold text-white"
+          style={{ background: "#25D366", display: "inline-flex" }}
+        >
+          💬 פני לרני בוואטסאפ
+        </a>
+      )}
+      {approvedFuture && !whatsappNumber && (
         <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-          לשינוי תור — פנה לרני ישירות
+          לשינוי תור — פני לרני ישירות
         </p>
       )}
     </div>
