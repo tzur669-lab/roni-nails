@@ -31,10 +31,10 @@ function collectionForStatus(status: AppointmentStatus): string {
 /** Search all 3 collections to find which one holds an appointment. */
 async function findCollection(
   id: string
-): Promise<{ coll: string; snap: ReturnType<typeof getDoc> extends Promise<infer T> ? T : never } | null> {
+): Promise<{ coll: string; data: Record<string, unknown> } | null> {
   for (const coll of ALL_COLLS) {
     const s = await getDoc(doc(db, coll, id));
-    if (s.exists()) return { coll, snap: s as any };
+    if (s.exists()) return { coll, data: s.data() as Record<string, unknown> };
   }
   return null;
 }
@@ -120,10 +120,9 @@ export async function updateAppointmentStatus(
     });
   } else {
     // Different collection — move the document atomically
-    const snap = found.snap as Awaited<ReturnType<typeof getDoc>>;
     const batch = writeBatch(db);
     batch.set(doc(db, targetColl, id), {
-      ...snap.data(),
+      ...found.data,
       status:    newStatus,
       updatedAt: serverTimestamp(),
     });
