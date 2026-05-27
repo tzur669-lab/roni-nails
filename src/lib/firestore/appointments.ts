@@ -38,7 +38,7 @@ function collectionForStatus(status: AppointmentStatus): string {
 async function safeDocs(q: ReturnType<typeof query>): Promise<Appointment[]> {
   try {
     const snap = await getDocs(q);
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Appointment);
+    return snap.docs.map((d) => Object.assign({ id: d.id }, d.data()) as Appointment);
   } catch (err) {
     console.warn("[appointments] query failed, skipping collection:", err);
     return [];
