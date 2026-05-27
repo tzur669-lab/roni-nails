@@ -157,6 +157,11 @@ firebase deploy --only firestore:rules
 - **Change:** Slot interval changed from 10 min to 5 min (`booking-logic.ts`). Removed the :00/:10 vs :05/:15 offset toggle from `TimeSlotPicker`.
 - **Fix (minor):** `admin/layout.tsx` — "הסלון" nav item icon changed from 🏠 (duplicate of "לוח ראשי") to 💅.
 
+### 2026-05-27 (session 2)
+- **Feature:** Email is now optional on the signup form. If left blank, Firebase Auth uses a generated placeholder email (`noemail_<timestamp>@placeholder.com`) and Firestore stores `""` for the email field. Users who sign up without email can log in via Google.
+- **Feature:** New `"completed"` appointment status. Any approved appointment whose `endTime` has passed is automatically marked as `"completed"` (sky-blue "בוצע ✓" badge) when the admin dashboard or "My Appointments" page loads. The transition runs client-side via `markPastAppointmentsAsCompleted()` in `src/lib/firestore/appointments.ts`. Firestore rules updated to allow authenticated owners to mark their own past appointments as completed.
+- **Feature:** Availability management — new "הוסף לכלל ימות השבוע" checkbox. When checked and recurring type is selected, one click creates 7 rules (Sun–Sat) at once with the same open/close times.
+
 ---
 
 _Last updated: 2026-05-27_

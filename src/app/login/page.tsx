@@ -116,10 +116,10 @@ export default function LoginPage() {
           )}
           <input
             type="email"
-            placeholder="אימייל"
+            placeholder={mode === "signup" ? "אימייל (אופציונלי)" : "אימייל"}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            required
+            required={mode === "login"}
             dir="ltr"
             className="w-full px-4 py-3 rounded-2xl border"
             style={{ borderColor: "var(--border-color)", background: "var(--accent)" }}

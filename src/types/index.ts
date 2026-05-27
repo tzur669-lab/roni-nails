@@ -7,7 +7,8 @@ export type AppointmentStatus =
   | "approved"
   | "rejected"
   | "cancelled"
-  | "change_requested";
+  | "change_requested"
+  | "completed";
 
 export interface AppUser {
   id: string;

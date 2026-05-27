@@ -56,7 +56,7 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // appointmentsApproved — approved bookings
+    // appointmentsApproved — approved + completed bookings
     match /appointmentsApproved/{id} {
       // List/query: public — needed for slot availability check
       allow list:   if true;
@@ -66,6 +66,11 @@ service cloud.firestore {
       );
       // All writes (create via batch move, update, delete/cancel): admin only
       allow write:  if isAdmin();
+      // Authenticated owners can mark their own past appointments as completed
+      allow update: if request.auth != null &&
+        resource.data.clientId == request.auth.uid &&
+        request.resource.data.status == "completed" &&
+        request.time > resource.data.endTime;
     }
 
     // appointmentsRejected — rejected + cancelled bookings

@@ -8,13 +8,13 @@ import { getClinicSettings } from "@/lib/firestore/settings";
 import { buildWhatsAppApprovalLink, buildWhatsAppCancellationLink, buildWhatsAppRejectionLink } from "@/lib/whatsapp";
 import type { Appointment, ClinicSettings } from "@/types";
 
-// cancelled is shown as נדחה — only 3 visible statuses
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  pending:          { label: "ממתין",  color: "#F59E0B" },
-  change_requested: { label: "ממתין",  color: "#F59E0B" },
-  approved:         { label: "מאושר",  color: "#10B981" },
-  rejected:         { label: "נדחה",   color: "#EF4444" },
-  cancelled:        { label: "נדחה",   color: "#EF4444" },
+  pending:          { label: "ממתין",   color: "#F59E0B" },
+  change_requested: { label: "ממתין",   color: "#F59E0B" },
+  approved:         { label: "מאושר",   color: "#10B981" },
+  rejected:         { label: "נדחה",    color: "#EF4444" },
+  cancelled:        { label: "נדחה",    color: "#EF4444" },
+  completed:        { label: "בוצע ✓",  color: "#0EA5E9" },
 };
 
 type FilterTab = "all" | "pending" | "approved" | "rejected";

@@ -23,8 +23,8 @@ const COLL_REJECTED = "appointmentsRejected";  // rejected, cancelled
 const ALL_COLLS     = [COLL_PENDING, COLL_APPROVED, COLL_REJECTED] as const;
 
 function collectionForStatus(status: AppointmentStatus): string {
-  if (status === "approved")                        return COLL_APPROVED;
-  if (status === "rejected" || status === "cancelled") return COLL_REJECTED;
+  if (status === "approved" || status === "completed") return COLL_APPROVED;
+  if (status === "rejected" || status === "cancelled")  return COLL_REJECTED;
   return COLL_PENDING; // pending, change_requested
 }
 
@@ -202,6 +202,34 @@ export function subscribeToAppointments(
   );
 
   return () => unsubs.forEach((u) => u());
+}
+
+/**
+ * Finds all approved appointments whose endTime has already passed and
+ * updates their status to "completed". Safe to call repeatedly.
+ * Returns the number of appointments that were updated.
+ */
+export async function markPastAppointmentsAsCompleted(): Promise<number> {
+  const now = Timestamp.now();
+  const snap = await getDocs(
+    query(
+      collection(db, COLL_APPROVED),
+      where("endTime", "<=", now)
+    )
+  );
+  // Filter in JS to skip docs that are already "completed"
+  const docsToUpdate = snap.docs.filter((d) => d.data().status === "approved");
+  if (docsToUpdate.length === 0) return 0;
+
+  const batch = writeBatch(db);
+  docsToUpdate.forEach((d) => {
+    batch.update(doc(db, COLL_APPROVED, d.id), {
+      status: "completed",
+      updatedAt: serverTimestamp(),
+    });
+  });
+  await batch.commit();
+  return docsToUpdate.length;
 }
 
 /**

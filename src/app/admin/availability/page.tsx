@@ -22,6 +22,7 @@ export default function AdminAvailabilityPage() {
     openTime: "09:00",
     closeTime: "19:00",
     isOpen: true,
+    addAllDays: false,
   });
   // New block form
   const [newBlock, setNewBlock] = useState({
@@ -36,6 +37,25 @@ export default function AdminAvailabilityPage() {
 
   async function addRule() {
     setSaving(true);
+    // "Add all days" — create one recurring rule for each day of the week (0–6)
+    if (newRule.type === "recurring" && newRule.addAllDays) {
+      const newEntries: AvailabilityRule[] = [];
+      for (let day = 0; day <= 6; day++) {
+        const data: Omit<AvailabilityRule, "id"> = {
+          type: "recurring",
+          dayOfWeek: day,
+          openTime: newRule.openTime,
+          closeTime: newRule.closeTime,
+          isOpen: newRule.isOpen,
+        };
+        const id = await addAvailabilityRule(data);
+        newEntries.push({ id, ...data });
+      }
+      setRules((prev) => [...prev, ...newEntries]);
+      setSaving(false);
+      return;
+    }
+    // Regular single-rule add
     const data: Omit<AvailabilityRule, "id"> = {
       type: newRule.type,
       openTime: newRule.openTime,
@@ -102,10 +122,25 @@ export default function AdminAvailabilityPage() {
                 <option value="one_time">תאריך ספציפי</option>
               </select>
               {newRule.type === "recurring" ? (
-                <select value={newRule.dayOfWeek} onChange={(e) => setNewRule((p) => ({ ...p, dayOfWeek: Number(e.target.value) }))}
-                  className="w-full px-4 py-3 rounded-xl border" style={{ borderColor: "var(--border-color)", background: "var(--accent)" }}>
-                  {DAYS.map((d, i) => <option key={i} value={i}>{d}</option>)}
-                </select>
+                <>
+                  <select
+                    value={newRule.dayOfWeek}
+                    onChange={(e) => setNewRule((p) => ({ ...p, dayOfWeek: Number(e.target.value) }))}
+                    disabled={newRule.addAllDays}
+                    className="w-full px-4 py-3 rounded-xl border disabled:opacity-40"
+                    style={{ borderColor: "var(--border-color)", background: "var(--accent)" }}
+                  >
+                    {DAYS.map((d, i) => <option key={i} value={i}>{d}</option>)}
+                  </select>
+                  <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={newRule.addAllDays}
+                      onChange={(e) => setNewRule((p) => ({ ...p, addAllDays: e.target.checked }))}
+                    />
+                    <span style={{ color: "var(--foreground)" }}>הוסף לכלל ימות השבוע</span>
+                  </label>
+                </>
               ) : (
                 <input type="date" value={newRule.date} onChange={(e) => setNewRule((p) => ({ ...p, date: e.target.value }))}
                   className="w-full px-4 py-3 rounded-xl border" style={{ borderColor: "var(--border-color)", background: "var(--accent)" }} />

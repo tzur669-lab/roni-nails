@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
-import { getClientAppointments, cancelAppointment } from "@/lib/firestore/appointments";
+import { getClientAppointments, cancelAppointment, markPastAppointmentsAsCompleted } from "@/lib/firestore/appointments";
 import { getClinicSettings } from "@/lib/firestore/settings";
 import { buildWhatsAppContactLink } from "@/lib/whatsapp";
 import { AppShell } from "@/components/shared/AppShell";
@@ -14,6 +14,7 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   rejected:         { label: "נדחה",          color: "#EF4444" },
   cancelled:        { label: "בוטל",          color: "#9CA3AF" },
   change_requested: { label: "בקשת שינוי",   color: "#8B5CF6" },
+  completed:        { label: "בוצע ✓",        color: "#0EA5E9" },
 };
 
 function formatDateTime(d: Date): string {
@@ -35,10 +36,15 @@ export default function MyAppointmentsPage() {
 
   useEffect(() => {
     if (!user) { setLoading(false); return; }
-    getClientAppointments(user.uid).then((a) => {
-      setAppointments(a);
-      setLoading(false);
-    });
+    // Mark past approved appointments as completed first, then fetch
+    markPastAppointmentsAsCompleted()
+      .catch(console.error)
+      .finally(() => {
+        getClientAppointments(user.uid).then((a) => {
+          setAppointments(a);
+          setLoading(false);
+        });
+      });
   }, [user]);
 
   async function handleCancel(id: string) {
@@ -53,9 +59,11 @@ export default function MyAppointmentsPage() {
   const upcoming = appointments.filter(
     (a) => a.startTime.toDate() > new Date() && a.status !== "cancelled" && a.status !== "rejected"
   );
-  // History: only approved appointments that already happened
+  // History: completed appointments + approved ones that already happened (pre-completion)
   const past = appointments.filter(
-    (a) => a.status === "approved" && a.startTime.toDate() <= new Date()
+    (a) =>
+      a.status === "completed" ||
+      (a.status === "approved" && a.startTime.toDate() <= new Date())
   );
 
   if (!user) {

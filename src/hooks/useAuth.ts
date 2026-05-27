@@ -94,11 +94,13 @@ export function useAuth() {
   }
 
   async function signUpWithEmail(email: string, password: string, name: string) {
-    const result = await createUserWithEmailAndPassword(auth, email, password);
+    // Email is optional — if empty, generate a placeholder for Firebase Auth only
+    const authEmail = email.trim() || `noemail_${Date.now()}@placeholder.com`;
+    const result = await createUserWithEmailAndPassword(auth, authEmail, password);
     try {
       await createUser(result.user.uid, {
         name,
-        email,
+        email: email.trim() || "", // store "" in Firestore when no email given
         phone: "",
         role: result.user.uid === ADMIN_UID ? "admin" : "client",
       });

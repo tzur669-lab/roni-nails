@@ -7,6 +7,7 @@ import {
   getUpcomingAppointments,
   updateAppointmentStatus,
   cancelAppointment,
+  markPastAppointmentsAsCompleted,
 } from "@/lib/firestore/appointments";
 import { getClinicSettings } from "@/lib/firestore/settings";
 import { buildWhatsAppApprovalLink, buildWhatsAppCancellationLink, buildWhatsAppRejectionLink } from "@/lib/whatsapp";
@@ -18,6 +19,7 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   rejected:         { label: "נדחה",      color: "#EF4444" },
   cancelled:        { label: "בוטל",      color: "#9CA3AF" },
   change_requested: { label: "שינוי",     color: "#8B5CF6" },
+  completed:        { label: "בוצע ✓",   color: "#0EA5E9" },
 };
 
 function formatTime(d: Date): string {
@@ -36,17 +38,20 @@ export default function AdminDashboard() {
   const [loadingId,  setLoadingId]    = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([
-      getTodayAppointments(),
-      getAllAppointments(),
-      getUpcomingAppointments(),
-      getClinicSettings(),
-    ]).then(([today, all, up, c]) => {
-      setTodayAppts(today);
-      setPending(all.filter((a) => a.status === "pending" || a.status === "change_requested"));
-      setUpcoming(up);
-      setClinic(c);
-      setLoading(false);
+    // First mark any past approved appointments as completed, then load data
+    markPastAppointmentsAsCompleted().catch(console.error).finally(() => {
+      Promise.all([
+        getTodayAppointments(),
+        getAllAppointments(),
+        getUpcomingAppointments(),
+        getClinicSettings(),
+      ]).then(([today, all, up, c]) => {
+        setTodayAppts(today);
+        setPending(all.filter((a) => a.status === "pending" || a.status === "change_requested"));
+        setUpcoming(up);
+        setClinic(c);
+        setLoading(false);
+      });
     });
   }, []);
 
