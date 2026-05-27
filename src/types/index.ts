@@ -103,6 +103,7 @@ export interface ClinicSettings {
 export interface PaymentSettings {
   bitQrImageUrl: string;
   bitPhoneNumber: string;
+  bitPayUrl?: string;
   payboxPhoneNumber: string;
 }
 

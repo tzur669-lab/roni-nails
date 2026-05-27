@@ -6,6 +6,7 @@ import type { PaymentSettings } from "@/types";
 const DEFAULT: PaymentSettings = {
   bitQrImageUrl: "",
   bitPhoneNumber: "",
+  bitPayUrl: "https://www.bitpay.co.il/app/me/3F9611C3-9973-F87E-2A4E-A968CD8CF9C7394F",
   payboxPhoneNumber: "",
 };
 
@@ -39,7 +40,7 @@ export default function AdminPaymentPage() {
 
       <div className="flex flex-col gap-4">
         <div className="p-5 rounded-2xl border" style={{ borderColor: "var(--border-color)", background: "var(--surface)" }}>
-          <h2 className="text-sm font-semibold mb-4" style={{ color: "var(--foreground)" }}>💰 Bit</h2>
+          <h2 className="text-sm font-semibold mb-4" style={{ color: "var(--foreground)" }}>💙 Bit</h2>
           <div className="flex flex-col gap-3">
             <div>
               <label className="text-xs mb-1 block" style={{ color: "var(--muted-foreground)" }}>מספר טלפון ל-Bit</label>
@@ -49,6 +50,17 @@ export default function AdminPaymentPage() {
                 onChange={(e) => setSettings((p) => ({ ...p, bitPhoneNumber: e.target.value }))}
                 dir="ltr"
                 placeholder="050-0000000"
+                className="w-full px-4 py-3 rounded-xl border"
+                style={{ borderColor: "var(--border-color)", background: "var(--accent)" }}
+              />
+            </div>
+            <div>
+              <label className="text-xs mb-1 block" style={{ color: "var(--muted-foreground)" }}>קישור תשלום Bit (לכפתור "שלם ב-Bit")</label>
+              <input
+                value={settings.bitPayUrl ?? ""}
+                onChange={(e) => setSettings((p) => ({ ...p, bitPayUrl: e.target.value }))}
+                dir="ltr"
+                placeholder="https://www.bitpay.co.il/app/me/..."
                 className="w-full px-4 py-3 rounded-xl border"
                 style={{ borderColor: "var(--border-color)", background: "var(--accent)" }}
               />

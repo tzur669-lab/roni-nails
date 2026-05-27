@@ -11,7 +11,7 @@ const DEFAULT: ClinicSettings = {
   phone: "",
   whatsappNumber: "",
   instagramUrl: "",
-  googleMapsUrl: "",
+  googleMapsUrl: "https://maps.app.goo.gl/bc7jxKbh8PPgKMrT9?g_st=aw",
   homeImageUrl: "",
   openingHours: {
     sun: { ...DEFAULT_HOURS },
