@@ -1,6 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
-import { getAllAppointments, updateAppointmentStatus, cancelAppointment } from "@/lib/firestore/appointments";
+import {
+  getAllAppointments, updateAppointmentStatus, cancelAppointment,
+  migrateFromLegacyCollection, hasLegacyAppointments,
+} from "@/lib/firestore/appointments";
 import { getClinicSettings } from "@/lib/firestore/settings";
 import { buildWhatsAppApprovalLink, buildWhatsAppCancellationLink } from "@/lib/whatsapp";
 import type { Appointment, ClinicSettings } from "@/types";
@@ -27,19 +30,42 @@ export default function AdminAppointmentsPage() {
   const [filter, setFilter] = useState<FilterTab>("all");
   const [clinic, setClinic] = useState<ClinicSettings | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showMigrate, setShowMigrate] = useState(false);
+  const [migrating,   setMigrating]   = useState(false);
 
   useEffect(() => {
-    Promise.all([getAllAppointments(), getClinicSettings()]).then(([appts, c]) => {
+    Promise.all([getAllAppointments(), getClinicSettings(), hasLegacyAppointments()]).then(([appts, c, legacy]) => {
       // Show only: future appointments + past within 3 days
       const cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - 3);
       cutoff.setHours(0, 0, 0, 0);
       const visible = appts.filter((a) => a.startTime.toDate() >= cutoff);
-      setAppointments(visible); // already sorted newest-first from Firestore
+      setAppointments(visible);
       setClinic(c);
+      setShowMigrate(legacy);
       setLoading(false);
     });
   }, []);
+
+  async function runMigration() {
+    if (!confirm("להעביר את כל התורים הישנים למבנה החדש?")) return;
+    setMigrating(true);
+    try {
+      const count = await migrateFromLegacyCollection();
+      alert(`✅ הועברו ${count} תורים בהצלחה!`);
+      setShowMigrate(false);
+      // Reload appointments from new collections
+      const appts = await getAllAppointments();
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - 3);
+      cutoff.setHours(0, 0, 0, 0);
+      setAppointments(appts.filter((a) => a.startTime.toDate() >= cutoff));
+    } catch (err) {
+      alert("שגיאה במיגרציה: " + String(err));
+    } finally {
+      setMigrating(false);
+    }
+  }
 
   async function handleApprove(appt: Appointment) {
     await updateAppointmentStatus(appt.id, "approved");
@@ -99,6 +125,31 @@ export default function AdminAppointmentsPage() {
       <h1 className="text-xl font-bold mb-4" style={{ color: "var(--foreground)" }}>
         ניהול תורים
       </h1>
+
+      {/* One-time migration banner */}
+      {showMigrate && (
+        <div
+          className="flex items-center justify-between p-4 rounded-2xl mb-4 border-2"
+          style={{ borderColor: "#F59E0B", background: "#FEF3C7" }}
+        >
+          <div>
+            <p className="text-sm font-semibold" style={{ color: "#92400E" }}>
+              📦 נמצאו תורים במבנה הישן
+            </p>
+            <p className="text-xs mt-0.5" style={{ color: "#B45309" }}>
+              לחצי להעברתם לmcollections החדשים
+            </p>
+          </div>
+          <button
+            onClick={runMigration}
+            disabled={migrating}
+            className="px-4 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-60"
+            style={{ background: "#F59E0B" }}
+          >
+            {migrating ? "מעביר..." : "🔄 העבר"}
+          </button>
+        </div>
+      )}
 
       {/* Filter tabs — 3 statuses only */}
       <div className="flex gap-2 overflow-x-auto pb-2 mb-4">

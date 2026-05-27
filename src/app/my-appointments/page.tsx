@@ -46,9 +46,9 @@ export default function MyAppointmentsPage() {
   const upcoming = appointments.filter(
     (a) => a.startTime.toDate() > new Date() && a.status !== "cancelled" && a.status !== "rejected"
   );
-  // History: past non-cancelled appointments + rejected (no cancelled ever shown)
+  // History: only approved appointments that already happened
   const past = appointments.filter(
-    (a) => a.status !== "cancelled" && (a.startTime.toDate() <= new Date() || a.status === "rejected")
+    (a) => a.status === "approved" && a.startTime.toDate() <= new Date()
   );
 
   if (!user) {

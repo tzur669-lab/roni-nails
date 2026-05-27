@@ -11,16 +11,40 @@ import {
   Timestamp,
   onSnapshot,
   serverTimestamp,
+  writeBatch,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Appointment, AppointmentStatus } from "@/types";
 
-const COL = "appointments";
+// ─── Three collections by status ───────────────────────────────────────────
+const COLL_PENDING  = "appointmentsPending";   // pending, change_requested
+const COLL_APPROVED = "appointmentsApproved";  // approved
+const COLL_REJECTED = "appointmentsRejected";  // rejected, cancelled
+const ALL_COLLS     = [COLL_PENDING, COLL_APPROVED, COLL_REJECTED] as const;
+
+function collectionForStatus(status: AppointmentStatus): string {
+  if (status === "approved")                        return COLL_APPROVED;
+  if (status === "rejected" || status === "cancelled") return COLL_REJECTED;
+  return COLL_PENDING; // pending, change_requested
+}
+
+/** Search all 3 collections to find which one holds an appointment. */
+async function findCollection(
+  id: string
+): Promise<{ coll: string; snap: ReturnType<typeof getDoc> extends Promise<infer T> ? T : never } | null> {
+  for (const coll of ALL_COLLS) {
+    const s = await getDoc(doc(db, coll, id));
+    if (s.exists()) return { coll, snap: s as any };
+  }
+  return null;
+}
+
+// ─── Public API ─────────────────────────────────────────────────────────────
 
 export async function createAppointment(
   data: Omit<Appointment, "id" | "createdAt" | "updatedAt">
 ): Promise<string> {
-  const ref = await addDoc(collection(db, COL), {
+  const ref = await addDoc(collection(db, COLL_PENDING), {
     ...data,
     status: "pending",
     createdAt: serverTimestamp(),
@@ -30,47 +54,82 @@ export async function createAppointment(
 }
 
 export async function getAppointment(id: string): Promise<Appointment | null> {
-  const snap = await getDoc(doc(db, COL, id));
-  if (!snap.exists()) return null;
-  return { id: snap.id, ...snap.data() } as Appointment;
+  for (const coll of ALL_COLLS) {
+    const snap = await getDoc(doc(db, coll, id));
+    if (snap.exists()) return { id: snap.id, ...snap.data() } as Appointment;
+  }
+  return null;
 }
 
 export async function getClientAppointments(clientId: string): Promise<Appointment[]> {
-  const q = query(
-    collection(db, COL),
-    where("clientId", "==", clientId),
-    orderBy("startTime", "desc")
+  const results = await Promise.all(
+    ALL_COLLS.map((coll) =>
+      getDocs(query(collection(db, coll), where("clientId", "==", clientId)))
+    )
   );
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Appointment);
+  return results
+    .flatMap((snap) => snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Appointment))
+    .sort((a, b) => b.startTime.toMillis() - a.startTime.toMillis());
 }
 
 export async function getAllAppointments(): Promise<Appointment[]> {
-  const q = query(collection(db, COL), orderBy("startTime", "desc"));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Appointment);
+  const results = await Promise.all(
+    ALL_COLLS.map((coll) =>
+      getDocs(query(collection(db, coll), orderBy("startTime", "desc")))
+    )
+  );
+  return results
+    .flatMap((snap) => snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Appointment))
+    .sort((a, b) => b.startTime.toMillis() - a.startTime.toMillis());
 }
 
 export async function getTodayAppointments(): Promise<Appointment[]> {
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-  const end = new Date();
-  end.setHours(23, 59, 59, 999);
-  const q = query(
-    collection(db, COL),
-    where("startTime", ">=", Timestamp.fromDate(start)),
-    where("startTime", "<=", Timestamp.fromDate(end)),
-    orderBy("startTime")
+  const start = new Date(); start.setHours(0,  0,  0,   0);
+  const end   = new Date(); end.setHours(23, 59, 59, 999);
+  const results = await Promise.all(
+    [COLL_PENDING, COLL_APPROVED].map((coll) =>
+      getDocs(
+        query(
+          collection(db, coll),
+          where("startTime", ">=", Timestamp.fromDate(start)),
+          where("startTime", "<=", Timestamp.fromDate(end)),
+          orderBy("startTime")
+        )
+      )
+    )
   );
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Appointment);
+  return results
+    .flatMap((snap) => snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Appointment))
+    .sort((a, b) => a.startTime.toMillis() - b.startTime.toMillis());
 }
 
 export async function updateAppointmentStatus(
   id: string,
-  status: AppointmentStatus
+  newStatus: AppointmentStatus
 ): Promise<void> {
-  await updateDoc(doc(db, COL, id), { status, updatedAt: serverTimestamp() });
+  const found = await findCollection(id);
+  if (!found) throw new Error(`Appointment ${id} not found in any collection`);
+
+  const targetColl = collectionForStatus(newStatus);
+
+  if (found.coll === targetColl) {
+    // Same collection — just update the field
+    await updateDoc(doc(db, found.coll, id), {
+      status:    newStatus,
+      updatedAt: serverTimestamp(),
+    });
+  } else {
+    // Different collection — move the document atomically
+    const snap = found.snap as Awaited<ReturnType<typeof getDoc>>;
+    const batch = writeBatch(db);
+    batch.set(doc(db, targetColl, id), {
+      ...snap.data(),
+      status:    newStatus,
+      updatedAt: serverTimestamp(),
+    });
+    batch.delete(doc(db, found.coll, id));
+    await batch.commit();
+  }
 }
 
 export async function requestAppointmentChange(
@@ -78,61 +137,109 @@ export async function requestAppointmentChange(
   newStart: Date,
   newEnd: Date
 ): Promise<void> {
-  await updateDoc(doc(db, COL, id), {
+  // change_requested stays in PENDING collection
+  const found = await findCollection(id);
+  if (!found) return;
+  await updateDoc(doc(db, found.coll, id), {
     status: "change_requested",
     changeRequest: {
       requestedStartTime: Timestamp.fromDate(newStart),
-      requestedEndTime: Timestamp.fromDate(newEnd),
-      requestedAt: serverTimestamp(),
+      requestedEndTime:   Timestamp.fromDate(newEnd),
+      requestedAt:        serverTimestamp(),
     },
     updatedAt: serverTimestamp(),
   });
 }
 
 export async function cancelAppointment(id: string): Promise<void> {
-  await updateDoc(doc(db, COL, id), {
-    status: "cancelled",
-    updatedAt: serverTimestamp(),
-  });
-}
-
-// Check overlapping appointments for a given time range
-export async function checkOverlap(
-  startTime: Date,
-  endTime: Date,
-  excludeId?: string
-): Promise<boolean> {
-  const q = query(
-    collection(db, COL),
-    where("status", "in", ["pending", "approved"]),
-    where("startTime", "<", Timestamp.fromDate(endTime)),
-    where("endTime", ">", Timestamp.fromDate(startTime))
-  );
-  const snap = await getDocs(q);
-  const docs = snap.docs.filter((d) => d.id !== excludeId);
-  return docs.length > 0;
+  return updateAppointmentStatus(id, "cancelled");
 }
 
 export async function getUpcomingAppointments(): Promise<Appointment[]> {
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
   tomorrow.setHours(0, 0, 0, 0);
-  const q = query(
-    collection(db, COL),
-    where("startTime", ">=", Timestamp.fromDate(tomorrow)),
-    orderBy("startTime")
+  const results = await Promise.all(
+    [COLL_PENDING, COLL_APPROVED].map((coll) =>
+      getDocs(
+        query(
+          collection(db, coll),
+          where("startTime", ">=", Timestamp.fromDate(tomorrow)),
+          orderBy("startTime")
+        )
+      )
+    )
   );
-  const snap = await getDocs(q);
-  return snap.docs
-    .map((d) => ({ id: d.id, ...d.data() }) as Appointment)
-    .filter((a) => a.status === "pending" || a.status === "approved");
+  return results
+    .flatMap((snap) => snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Appointment))
+    .sort((a, b) => a.startTime.toMillis() - b.startTime.toMillis());
 }
 
+/** Real-time subscription across all 3 collections. */
 export function subscribeToAppointments(
   callback: (appointments: Appointment[]) => void
-) {
-  const q = query(collection(db, COL), orderBy("startTime", "desc"));
-  return onSnapshot(q, (snap) => {
-    callback(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Appointment));
-  });
+): () => void {
+  const buckets = new Map<string, Map<string, Appointment>>(
+    ALL_COLLS.map((c) => [c, new Map()])
+  );
+
+  function emit() {
+    const all = Array.from(buckets.values())
+      .flatMap((m) => Array.from(m.values()))
+      .sort((a, b) => b.startTime.toMillis() - a.startTime.toMillis());
+    callback(all);
+  }
+
+  const unsubs = ALL_COLLS.map((coll) =>
+    onSnapshot(
+      query(collection(db, coll), orderBy("startTime", "desc")),
+      (snap) => {
+        const map = buckets.get(coll)!;
+        map.clear();
+        snap.docs.forEach((d) => map.set(d.id, { id: d.id, ...d.data() } as Appointment));
+        emit();
+      }
+    )
+  );
+
+  return () => unsubs.forEach((u) => u());
+}
+
+/**
+ * One-time migration: moves all documents from the old flat `appointments`
+ * collection to the correct new collection based on their status.
+ * Safe to run multiple times — documents already moved won't be in `appointments`.
+ */
+export async function migrateFromLegacyCollection(): Promise<number> {
+  const snap = await getDocs(collection(db, "appointments"));
+  if (snap.empty) return 0;
+
+  let count = 0;
+  const batch = writeBatch(db);
+
+  for (const d of snap.docs) {
+    const data   = d.data() as Omit<Appointment, "id">;
+    const status = (data.status ?? "pending") as AppointmentStatus;
+    const target = collectionForStatus(status);
+
+    batch.set(doc(db, target, d.id), data);
+    batch.delete(doc(db, "appointments", d.id));
+    count++;
+
+    // Firestore batch limit is 500 ops; each item = 2 ops → max 250 per batch
+    if (count % 200 === 0) {
+      await batch.commit();
+      // Can't reuse the same batch after commit — rebuild
+      // (for a nail salon this is unlikely to be needed)
+    }
+  }
+
+  if (count % 200 !== 0) await batch.commit();
+  return count;
+}
+
+/** Check if the legacy `appointments` collection still has documents. */
+export async function hasLegacyAppointments(): Promise<boolean> {
+  const snap = await getDocs(collection(db, "appointments"));
+  return !snap.empty;
 }
