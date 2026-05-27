@@ -24,13 +24,28 @@ const COLL_COMPLETED = "appointmentsCompleted";  // completed (past)
 const ALL_COLLS      = [COLL_PENDING, COLL_APPROVED, COLL_REJECTED, COLL_COMPLETED] as const;
 
 function collectionForStatus(status: AppointmentStatus): string {
-  if (status === "approved")                         return COLL_APPROVED;
-  if (status === "completed")                        return COLL_COMPLETED;
+  if (status === "approved")                          return COLL_APPROVED;
+  if (status === "completed")                         return COLL_COMPLETED;
   if (status === "rejected" || status === "cancelled") return COLL_REJECTED;
   return COLL_PENDING; // pending, change_requested
 }
 
-/** Search all 3 collections to find which one holds an appointment. */
+/**
+ * Runs a getDocs query and swallows permission / network errors.
+ * Returns an empty array on failure so multi-collection reads degrade
+ * gracefully instead of rejecting the whole Promise.all.
+ */
+async function safeDocs(q: ReturnType<typeof query>): Promise<Appointment[]> {
+  try {
+    const snap = await getDocs(q);
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Appointment);
+  } catch (err) {
+    console.warn("[appointments] query failed, skipping collection:", err);
+    return [];
+  }
+}
+
+/** Search all collections to find which one holds an appointment. */
 async function findCollection(
   id: string
 ): Promise<{ coll: string; data: Record<string, unknown> } | null> {
@@ -66,22 +81,22 @@ export async function getAppointment(id: string): Promise<Appointment | null> {
 export async function getClientAppointments(clientId: string): Promise<Appointment[]> {
   const results = await Promise.all(
     ALL_COLLS.map((coll) =>
-      getDocs(query(collection(db, coll), where("clientId", "==", clientId)))
+      safeDocs(query(collection(db, coll), where("clientId", "==", clientId)))
     )
   );
   return results
-    .flatMap((snap) => snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Appointment))
+    .flat()
     .sort((a, b) => b.startTime.toMillis() - a.startTime.toMillis());
 }
 
 export async function getAllAppointments(): Promise<Appointment[]> {
   const results = await Promise.all(
     ALL_COLLS.map((coll) =>
-      getDocs(query(collection(db, coll), orderBy("startTime", "desc")))
+      safeDocs(query(collection(db, coll), orderBy("startTime", "desc")))
     )
   );
   return results
-    .flatMap((snap) => snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Appointment))
+    .flat()
     .sort((a, b) => b.startTime.toMillis() - a.startTime.toMillis());
 }
 
@@ -93,11 +108,11 @@ export async function getAllAppointments(): Promise<Appointment[]> {
 export async function getActiveAppointmentsForSlots(): Promise<Appointment[]> {
   const results = await Promise.all(
     [COLL_PENDING, COLL_APPROVED].map((coll) =>
-      getDocs(query(collection(db, coll), orderBy("startTime", "desc")))
+      safeDocs(query(collection(db, coll), orderBy("startTime", "desc")))
     )
   );
   return results
-    .flatMap((snap) => snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Appointment))
+    .flat()
     .sort((a, b) => b.startTime.toMillis() - a.startTime.toMillis());
 }
 
@@ -106,7 +121,7 @@ export async function getTodayAppointments(): Promise<Appointment[]> {
   const end   = new Date(); end.setHours(23, 59, 59, 999);
   const results = await Promise.all(
     [COLL_PENDING, COLL_APPROVED, COLL_COMPLETED].map((coll) =>
-      getDocs(
+      safeDocs(
         query(
           collection(db, coll),
           where("startTime", ">=", Timestamp.fromDate(start)),
@@ -117,7 +132,7 @@ export async function getTodayAppointments(): Promise<Appointment[]> {
     )
   );
   return results
-    .flatMap((snap) => snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Appointment))
+    .flat()
     .sort((a, b) => a.startTime.toMillis() - b.startTime.toMillis());
 }
 
@@ -178,7 +193,7 @@ export async function getUpcomingAppointments(): Promise<Appointment[]> {
   tomorrow.setHours(0, 0, 0, 0);
   const results = await Promise.all(
     [COLL_PENDING, COLL_APPROVED].map((coll) =>
-      getDocs(
+      safeDocs(
         query(
           collection(db, coll),
           where("startTime", ">=", Timestamp.fromDate(tomorrow)),
@@ -188,11 +203,11 @@ export async function getUpcomingAppointments(): Promise<Appointment[]> {
     )
   );
   return results
-    .flatMap((snap) => snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Appointment))
+    .flat()
     .sort((a, b) => a.startTime.toMillis() - b.startTime.toMillis());
 }
 
-/** Real-time subscription across all 3 collections. */
+/** Real-time subscription across all collections. */
 export function subscribeToAppointments(
   callback: (appointments: Appointment[]) => void
 ): () => void {
@@ -215,6 +230,9 @@ export function subscribeToAppointments(
         map.clear();
         snap.docs.forEach((d) => map.set(d.id, { id: d.id, ...d.data() } as Appointment));
         emit();
+      },
+      (err) => {
+        console.warn(`[appointments] snapshot on '${coll}' failed:`, err);
       }
     )
   );
@@ -225,27 +243,23 @@ export function subscribeToAppointments(
 /**
  * Finds all approved appointments whose endTime has already passed,
  * moves them to appointmentsCompleted, and deletes from appointmentsApproved.
- * Safe to call repeatedly (skips docs already in COLL_COMPLETED).
- * Returns the number of appointments moved.
+ * Safe to call repeatedly. Returns the number of appointments moved.
  */
 export async function markPastAppointmentsAsCompleted(): Promise<number> {
   const now = Timestamp.now();
   const snap = await getDocs(
     query(collection(db, COLL_APPROVED), where("endTime", "<=", now))
   );
-  // Only move docs that are still "approved" (not already completed)
   const docsToMove = snap.docs.filter((d) => d.data().status === "approved");
   if (docsToMove.length === 0) return 0;
 
   const batch = writeBatch(db);
   docsToMove.forEach((d) => {
-    // Write to completed collection
     batch.set(doc(db, COLL_COMPLETED, d.id), {
       ...d.data(),
       status: "completed",
       updatedAt: serverTimestamp(),
     });
-    // Remove from approved collection
     batch.delete(doc(db, COLL_APPROVED, d.id));
   });
   await batch.commit();
@@ -254,7 +268,7 @@ export async function markPastAppointmentsAsCompleted(): Promise<number> {
 
 /**
  * Creates an appointment directly in the correct collection based on its status.
- * Used by admin to manually add appointments (e.g. "approved" goes to COLL_APPROVED).
+ * Used by admin to manually add appointments (e.g. "approved" → COLL_APPROVED).
  */
 export async function createAdminAppointment(
   data: Omit<Appointment, "id" | "createdAt" | "updatedAt">
@@ -271,7 +285,6 @@ export async function createAdminAppointment(
 /**
  * One-time migration: moves all documents from the old flat `appointments`
  * collection to the correct new collection based on their status.
- * Safe to run multiple times — documents already moved won't be in `appointments`.
  */
 export async function migrateFromLegacyCollection(): Promise<number> {
   const snap = await getDocs(collection(db, "appointments"));
@@ -289,12 +302,7 @@ export async function migrateFromLegacyCollection(): Promise<number> {
     batch.delete(doc(db, "appointments", d.id));
     count++;
 
-    // Firestore batch limit is 500 ops; each item = 2 ops → max 250 per batch
-    if (count % 200 === 0) {
-      await batch.commit();
-      // Can't reuse the same batch after commit — rebuild
-      // (for a nail salon this is unlikely to be needed)
-    }
+    if (count % 200 === 0) await batch.commit();
   }
 
   if (count % 200 !== 0) await batch.commit();
@@ -303,6 +311,10 @@ export async function migrateFromLegacyCollection(): Promise<number> {
 
 /** Check if the legacy `appointments` collection still has documents. */
 export async function hasLegacyAppointments(): Promise<boolean> {
-  const snap = await getDocs(collection(db, "appointments"));
-  return !snap.empty;
+  try {
+    const snap = await getDocs(collection(db, "appointments"));
+    return !snap.empty;
+  } catch {
+    return false;
+  }
 }

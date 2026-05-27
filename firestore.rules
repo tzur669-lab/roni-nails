@@ -4,6 +4,7 @@ service cloud.firestore {
 
     function isAdmin() {
       return request.auth != null &&
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
@@ -24,7 +25,7 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // Appointments (legacy flat collection — kept for backward compatibility during migration)
+    // Appointments (legacy flat collection — kept for backward compat during migration)
     match /appointments/{id} {
       allow get: if request.auth != null && (
         resource.data.clientId == request.auth.uid || isAdmin()
@@ -36,60 +37,46 @@ service cloud.firestore {
       );
     }
 
-    // Appointments — three collections by status (current architecture)
-
-    // appointmentsPending — pending + change_requested bookings
+    // ── appointmentsPending — pending + change_requested ────────────────────
     match /appointmentsPending/{id} {
-      // List/query: public — needed for slot availability check by guests + clients
       allow list:   if true;
-      // Single-doc read: only the owner or admin
       allow get:    if request.auth != null && (
         resource.data.clientId == request.auth.uid || isAdmin()
       );
-      // Create: guests can book without login
       allow create: if true;
-      // Update: owner (reschedule request) or admin (approve/reject)
       allow update: if request.auth != null && (
         resource.data.clientId == request.auth.uid || isAdmin()
       );
-      // Delete: admin only — used in batch move when approving/rejecting
       allow delete: if isAdmin();
     }
 
-    // appointmentsApproved — upcoming approved bookings
+    // ── appointmentsApproved — upcoming approved bookings ───────────────────
     match /appointmentsApproved/{id} {
-      // List/query: public — needed for slot availability check
-      allow list:   if true;
-      // Single-doc read: owner or admin
-      allow get:    if request.auth != null && (
+      allow list:  if true;
+      allow get:   if request.auth != null && (
         resource.data.clientId == request.auth.uid || isAdmin()
       );
-      // All writes (create via batch move, update, delete/cancel): admin only
-      allow write:  if isAdmin();
+      allow write: if isAdmin();
     }
 
-    // appointmentsCompleted — past completed bookings (moved from appointmentsApproved)
-    match /appointmentsCompleted/{id} {
-      // List: public (consistent with other appointment collections; getClientAppointments uses this)
-      allow list:   if true;
-      // Single-doc read: owner or admin
-      allow get:    if request.auth != null && (
-        resource.data.clientId == request.auth.uid || isAdmin()
-      );
-      // All writes: admin only
-      allow write:  if isAdmin();
-    }
-
-    // appointmentsRejected — rejected + cancelled bookings
+    // ── appointmentsRejected — rejected + cancelled bookings ────────────────
     match /appointmentsRejected/{id} {
-      // List/query: admin only (no need to expose rejected slots publicly)
-      allow list:   if isAdmin();
-      // Single-doc read: owner or admin
-      allow get:    if request.auth != null && (
+      // list: authenticated users (needed for getClientAppointments to show
+      //       a client's own cancelled appointments)
+      allow list:  if request.auth != null;
+      allow get:   if request.auth != null && (
         resource.data.clientId == request.auth.uid || isAdmin()
       );
-      // All writes: admin only
-      allow write:  if isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // ── appointmentsCompleted — past completed bookings ─────────────────────
+    match /appointmentsCompleted/{id} {
+      allow list:  if true;
+      allow get:   if request.auth != null && (
+        resource.data.clientId == request.auth.uid || isAdmin()
+      );
+      allow write: if isAdmin();
     }
 
     // Settings — public read, admin write

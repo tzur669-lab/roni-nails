@@ -45,13 +45,15 @@ export default function AdminDashboard() {
         getAllAppointments(),
         getUpcomingAppointments(),
         getClinicSettings(),
-      ]).then(([today, all, up, c]) => {
-        setTodayAppts(today);
-        setPending(all.filter((a) => a.status === "pending" || a.status === "change_requested"));
-        setUpcoming(up);
-        setClinic(c);
-        setLoading(false);
-      });
+      ])
+        .then(([today, all, up, c]) => {
+          setTodayAppts(today);
+          setPending(all.filter((a) => a.status === "pending" || a.status === "change_requested"));
+          setUpcoming(up);
+          setClinic(c);
+        })
+        .catch((err) => console.error("admin dashboard load failed:", err))
+        .finally(() => setLoading(false));
     });
   }, []);
 

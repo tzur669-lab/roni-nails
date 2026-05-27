@@ -36,17 +36,19 @@ export default function AdminAppointmentsPage() {
   const [loadingId,   setLoadingId]   = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([getAllAppointments(), getClinicSettings(), hasLegacyAppointments()]).then(([appts, c, legacy]) => {
-      // Show only: future appointments + past within 3 days
-      const cutoff = new Date();
-      cutoff.setDate(cutoff.getDate() - 3);
-      cutoff.setHours(0, 0, 0, 0);
-      const visible = appts.filter((a) => a.startTime.toDate() >= cutoff);
-      setAppointments(visible);
-      setClinic(c);
-      setShowMigrate(legacy);
-      setLoading(false);
-    });
+    Promise.all([getAllAppointments(), getClinicSettings(), hasLegacyAppointments()])
+      .then(([appts, c, legacy]) => {
+        // Show only: future appointments + past within 3 days
+        const cutoff = new Date();
+        cutoff.setDate(cutoff.getDate() - 3);
+        cutoff.setHours(0, 0, 0, 0);
+        const visible = appts.filter((a) => a.startTime.toDate() >= cutoff);
+        setAppointments(visible);
+        setClinic(c);
+        setShowMigrate(legacy);
+      })
+      .catch((err) => console.error("appointments page load failed:", err))
+      .finally(() => setLoading(false));
   }, []);
 
   async function runMigration() {
