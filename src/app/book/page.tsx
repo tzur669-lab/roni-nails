@@ -4,7 +4,7 @@ import { Timestamp } from "firebase/firestore";
 import { useAuth } from "@/hooks/useAuth";
 import { useBookingStore } from "@/store/bookingStore";
 import { getServices } from "@/lib/firestore/services";
-import { getAllAppointments, createAppointment } from "@/lib/firestore/appointments";
+import { getActiveAppointmentsForSlots, createAppointment } from "@/lib/firestore/appointments";
 import { getAvailabilityRules, getBlockedTimesForDate, getClinicSettings } from "@/lib/firestore/settings";
 import { generateTimeSlots, appointmentToSlot } from "@/lib/booking-logic";
 import { ServiceCard } from "@/components/booking/ServiceCard";
@@ -74,7 +74,7 @@ export default function BookPage() {
     Promise.all([
       getAvailabilityRules(),
       getBlockedTimesForDate(store.selectedDate),
-      getAllAppointments(),
+      getActiveAppointmentsForSlots(),
     ]).then(([rules, blocked, appts]) => {
       const existing = appts
         .filter((a) => a.status === "pending" || a.status === "approved")

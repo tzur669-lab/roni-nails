@@ -85,6 +85,22 @@ export async function getAllAppointments(): Promise<Appointment[]> {
     .sort((a, b) => b.startTime.toMillis() - a.startTime.toMillis());
 }
 
+/**
+ * Returns only pending + approved appointments — the two collections that
+ * affect slot availability. Used by the public booking page (including guests)
+ * so it must not query collections that require auth.
+ */
+export async function getActiveAppointmentsForSlots(): Promise<Appointment[]> {
+  const results = await Promise.all(
+    [COLL_PENDING, COLL_APPROVED].map((coll) =>
+      getDocs(query(collection(db, coll), orderBy("startTime", "desc")))
+    )
+  );
+  return results
+    .flatMap((snap) => snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Appointment))
+    .sort((a, b) => b.startTime.toMillis() - a.startTime.toMillis());
+}
+
 export async function getTodayAppointments(): Promise<Appointment[]> {
   const start = new Date(); start.setHours(0,  0,  0,   0);
   const end   = new Date(); end.setHours(23, 59, 59, 999);

@@ -70,8 +70,8 @@ service cloud.firestore {
 
     // appointmentsCompleted — past completed bookings (moved from appointmentsApproved)
     match /appointmentsCompleted/{id} {
-      // List: any authenticated user (needed for getClientAppointments)
-      allow list:   if request.auth != null;
+      // List: public (consistent with other appointment collections; getClientAppointments uses this)
+      allow list:   if true;
       // Single-doc read: owner or admin
       allow get:    if request.auth != null && (
         resource.data.clientId == request.auth.uid || isAdmin()
