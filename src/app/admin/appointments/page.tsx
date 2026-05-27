@@ -1,8 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
-import { getAllAppointments, updateAppointmentStatus } from "@/lib/firestore/appointments";
+import { getAllAppointments, updateAppointmentStatus, cancelAppointment } from "@/lib/firestore/appointments";
 import { getClinicSettings } from "@/lib/firestore/settings";
-import { buildWhatsAppApprovalLink } from "@/lib/whatsapp";
+import { buildWhatsAppApprovalLink, buildWhatsAppCancellationLink } from "@/lib/whatsapp";
 import type { Appointment, ClinicSettings, AppointmentStatus } from "@/types";
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
@@ -54,6 +54,25 @@ export default function AdminAppointmentsPage() {
     );
   }
 
+  async function handleCancel(appt: Appointment) {
+    if (!confirm(`לבטל את התור של ${appt.clientName}?`)) return;
+    await cancelAppointment(appt.id);
+    setAppointments((prev) =>
+      prev.map((a) => (a.id === appt.id ? { ...a, status: "cancelled" } : a))
+    );
+    if (clinic) {
+      const link = buildWhatsAppCancellationLink({
+        clientPhone:   appt.clientPhone,
+        clientName:    appt.clientName,
+        serviceName:   appt.serviceName,
+        startTime:     appt.startTime.toDate(),
+        endTime:       appt.endTime.toDate(),
+        clinicAddress: clinic.address,
+      });
+      window.open(link, "_blank");
+    }
+  }
+
   const filtered = filter === "all" ? appointments : appointments.filter((a) => a.status === filter);
 
   return (
@@ -94,6 +113,7 @@ export default function AdminAppointmentsPage() {
               appointment={appt}
               onApprove={handleApprove}
               onReject={handleReject}
+              onCancel={handleCancel}
             />
           ))}
         </div>
@@ -106,14 +126,17 @@ function AppointmentRow({
   appointment,
   onApprove,
   onReject,
+  onCancel,
 }: {
   appointment: Appointment;
   onApprove: (a: Appointment) => void;
-  onReject: (id: string) => void;
+  onReject:  (id: string) => void;
+  onCancel:  (a: Appointment) => void;
 }) {
   const st = STATUS_LABELS[appointment.status];
   const start = appointment.startTime.toDate();
-  const isPending = appointment.status === "pending" || appointment.status === "change_requested";
+  const isPending  = appointment.status === "pending" || appointment.status === "change_requested";
+  const isApproved = appointment.status === "approved";
 
   return (
     <div
@@ -158,6 +181,15 @@ function AppointmentRow({
             ✕ דחה
           </button>
         </div>
+      )}
+      {isApproved && (
+        <button
+          onClick={() => onCancel(appointment)}
+          className="text-xs px-3 py-1.5 rounded-xl border"
+          style={{ borderColor: "#EF4444", color: "#EF4444" }}
+        >
+          ✕ בטל + WhatsApp
+        </button>
       )}
     </div>
   );

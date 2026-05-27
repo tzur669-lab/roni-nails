@@ -113,6 +113,21 @@ export async function checkOverlap(
   return docs.length > 0;
 }
 
+export async function getUpcomingAppointments(): Promise<Appointment[]> {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  tomorrow.setHours(0, 0, 0, 0);
+  const q = query(
+    collection(db, COL),
+    where("startTime", ">=", Timestamp.fromDate(tomorrow)),
+    orderBy("startTime")
+  );
+  const snap = await getDocs(q);
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }) as Appointment)
+    .filter((a) => a.status === "pending" || a.status === "approved");
+}
+
 export function subscribeToAppointments(
   callback: (appointments: Appointment[]) => void
 ) {

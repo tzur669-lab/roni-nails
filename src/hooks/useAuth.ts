@@ -2,7 +2,8 @@
 import { useEffect, useState } from "react";
 import {
   onAuthStateChanged,
-  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   GoogleAuthProvider,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
@@ -19,6 +20,24 @@ export function useAuth() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Handle Google redirect result (fires after returning from Google OAuth page)
+    getRedirectResult(auth)
+      .then(async (result) => {
+        if (result?.user) {
+          const u = await getUser(result.user.uid);
+          if (!u) {
+            await createUser(result.user.uid, {
+              name: result.user.displayName ?? "",
+              email: result.user.email ?? "",
+              phone: "",
+              role: result.user.uid === ADMIN_UID ? "admin" : "client",
+            }).catch(console.error);
+          }
+        }
+      })
+      .catch(console.error);
+
+    // Main auth state listener
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
       if (firebaseUser) {
@@ -45,17 +64,9 @@ export function useAuth() {
   async function signInWithGoogle() {
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: "select_account" });
-    const result = await signInWithPopup(auth, provider);
-    const u = await getUser(result.user.uid);
-    if (!u) {
-      await createUser(result.user.uid, {
-        name: result.user.displayName ?? "",
-        email: result.user.email ?? "",
-        phone: "",
-        role: result.user.uid === ADMIN_UID ? "admin" : "client",
-      });
-    }
-    return result.user;
+    // Redirect the entire tab to Google — no popup, works with all popup blockers
+    await signInWithRedirect(auth, provider);
+    // Code below never runs — page navigates away
   }
 
   async function signInWithEmail(email: string, password: string) {

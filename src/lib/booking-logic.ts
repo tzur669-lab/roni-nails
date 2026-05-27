@@ -12,55 +12,61 @@ export function generateTimeSlots(
 ): TimeSlot[] {
   const dayOfWeek = date.getDay();
 
-  const oneTimeRule = rules.find(
-    (r) =>
-      r.type === "one_time" &&
-      r.date &&
-      isSameDay(r.date.toDate(), date)
+  // Collect ALL matching rules for this day
+  const oneTimeRules = rules.filter(
+    (r) => r.type === "one_time" && r.date && isSameDay(r.date.toDate(), date)
   );
-  const recurringRule = rules.find(
+  const recurringRules = rules.filter(
     (r) => r.type === "recurring" && r.dayOfWeek === dayOfWeek
   );
 
-  const rule = oneTimeRule ?? recurringRule;
+  // One-time rules override recurring for the whole day
+  const applicableRules = oneTimeRules.length > 0 ? oneTimeRules : recurringRules;
 
-  if (!rule || !rule.isOpen) return [];
+  if (!applicableRules.length || applicableRules.every((r) => !r.isOpen)) return [];
 
-  const [openH, openM] = rule.openTime.split(":").map(Number);
-  const [closeH, closeM] = rule.closeTime.split(":").map(Number);
+  // Generate slots for each open time window, then merge and sort
+  const allSlots: TimeSlot[] = [];
 
-  const slots: TimeSlot[] = [];
-  const current = new Date(date);
-  current.setHours(openH, openM, 0, 0);
+  for (const rule of applicableRules) {
+    if (!rule.isOpen) continue;
 
-  const closeTime = new Date(date);
-  closeTime.setHours(closeH, closeM, 0, 0);
+    const [openH, openM]   = rule.openTime.split(":").map(Number);
+    const [closeH, closeM] = rule.closeTime.split(":").map(Number);
 
-  while (true) {
-    const slotEnd = new Date(current.getTime() + serviceDuration * 60_000);
-    if (slotEnd > closeTime) break;
+    const current = new Date(date);
+    current.setHours(openH, openM, 0, 0);
 
-    const available =
-      !isBlocked(current, slotEnd, blockedTimes) &&
-      !hasOverlap(current, slotEnd, existingSlots);
+    const closeTime = new Date(date);
+    closeTime.setHours(closeH, closeM, 0, 0);
 
-    slots.push({
-      startTime: new Date(current),
-      endTime: new Date(slotEnd),
-      available,
-    });
+    while (true) {
+      const slotEnd = new Date(current.getTime() + serviceDuration * 60_000);
+      if (slotEnd > closeTime) break;
 
-    current.setMinutes(current.getMinutes() + SLOT_INTERVAL_MINUTES);
+      const available =
+        !isBlocked(current, slotEnd, blockedTimes) &&
+        !hasOverlap(current, slotEnd, existingSlots);
+
+      allSlots.push({
+        startTime: new Date(current),
+        endTime:   new Date(slotEnd),
+        available,
+      });
+
+      current.setMinutes(current.getMinutes() + SLOT_INTERVAL_MINUTES);
+    }
   }
 
-  return slots;
+  // Sort all windows chronologically
+  return allSlots.sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
 }
 
 function isSameDay(a: Date, b: Date): boolean {
   return (
     a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
+    a.getMonth()    === b.getMonth()    &&
+    a.getDate()     === b.getDate()
   );
 }
 
@@ -72,11 +78,9 @@ function isBlocked(
   return blockedTimes.some((bt) => {
     if (bt.isAllDay) return true;
     const [bStartH, bStartM] = bt.startTime.split(":").map(Number);
-    const [bEndH, bEndM] = bt.endTime.split(":").map(Number);
-    const bStart = new Date(start);
-    bStart.setHours(bStartH, bStartM, 0, 0);
-    const bEnd = new Date(start);
-    bEnd.setHours(bEndH, bEndM, 0, 0);
+    const [bEndH,   bEndM]   = bt.endTime.split(":").map(Number);
+    const bStart = new Date(start); bStart.setHours(bStartH, bStartM, 0, 0);
+    const bEnd   = new Date(start); bEnd.setHours(bEndH,   bEndM,   0, 0);
     return start < bEnd && end > bStart;
   });
 }
@@ -91,10 +95,10 @@ function hasOverlap(
 
 export function appointmentToSlot(appt: {
   startTime: Timestamp;
-  endTime: Timestamp;
+  endTime:   Timestamp;
 }): { start: Date; end: Date } {
   return {
     start: appt.startTime.toDate(),
-    end: appt.endTime.toDate(),
+    end:   appt.endTime.toDate(),
   };
 }

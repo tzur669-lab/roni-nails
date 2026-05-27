@@ -1,12 +1,12 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { setPersistence, browserLocalPersistence, browserSessionPersistence } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useAuth } from "@/hooks/useAuth";
 
 export default function LoginPage() {
-  const { signInWithGoogle, signInWithEmail, signUpWithEmail } = useAuth();
+  const { user, signInWithGoogle, signInWithEmail, signUpWithEmail } = useAuth();
   const router = useRouter();
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
@@ -16,6 +16,11 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
 
+  // After Google redirect returns, user state will be set — send to home
+  useEffect(() => {
+    if (user) router.push("/");
+  }, [user, router]);
+
   async function applyPersistence() {
     await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
   }
@@ -24,13 +29,12 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await applyPersistence();
-      await signInWithGoogle();
-      router.push("/");
+      await signInWithGoogle(); // redirects the entire page to Google — never returns
     } catch {
       setError("שגיאה בהתחברות עם Google");
-    } finally {
-      setLoading(false);
+      setLoading(false); // only runs if something fails before redirect
     }
+    // No finally — page navigates away, so loading state doesn't matter
   }
 
   async function handleEmail(e: React.FormEvent) {
@@ -84,7 +88,7 @@ export default function LoginPage() {
             <path fill="#FBBC05" d="M5.525 14.29c-.25-.72-.38-1.49-.38-2.29s.14-1.57.38-2.29V6.62h-3.98a11.86 11.86 0 0 0 0 10.76l3.98-3.09z"/>
             <path fill="#EA4335" d="M12.255 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C18.205 1.19 15.495 0 12.255 0c-4.69 0-8.74 2.7-10.71 6.62l3.98 3.09c.95-2.85 3.6-4.96 6.73-4.96z"/>
           </svg>
-          המשך עם Google
+          {loading ? "מתחבר..." : "המשך עם Google"}
         </button>
 
         <div className="flex items-center gap-3 my-4">

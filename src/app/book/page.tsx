@@ -5,14 +5,15 @@ import { useAuth } from "@/hooks/useAuth";
 import { useBookingStore } from "@/store/bookingStore";
 import { getServices } from "@/lib/firestore/services";
 import { getAllAppointments, createAppointment } from "@/lib/firestore/appointments";
-import { getAvailabilityRules, getBlockedTimesForDate } from "@/lib/firestore/settings";
+import { getAvailabilityRules, getBlockedTimesForDate, getClinicSettings } from "@/lib/firestore/settings";
 import { generateTimeSlots, appointmentToSlot } from "@/lib/booking-logic";
 import { ServiceCard } from "@/components/booking/ServiceCard";
 import { TimeSlotPicker } from "@/components/booking/TimeSlotPicker";
 import { GuestForm } from "@/components/booking/GuestForm";
 import { BookingConfirmation } from "@/components/booking/BookingConfirmation";
 import { AppShell } from "@/components/shared/AppShell";
-import type { Service, TimeSlot } from "@/types";
+import { toHebrewDateShort, getHebrewHolidays } from "@/lib/hebrew-calendar";
+import type { Service, TimeSlot, ClinicSettings } from "@/types";
 
 // ─── Calendar helpers ──────────────────────────────────────────────
 const MONTHS_HE = [
@@ -38,23 +39,33 @@ export default function BookPage() {
   const { user, appUser } = useAuth();
   const store = useBookingStore();
 
-  const [services, setServices] = useState<Service[]>([]);
-  const [slots, setSlots] = useState<TimeSlot[]>([]);
+  const [services,     setServices]     = useState<Service[]>([]);
+  const [slots,        setSlots]        = useState<TimeSlot[]>([]);
+  const [clinicSettings, setClinicSettings] = useState<ClinicSettings | null>(null);
   const [loadingSlots, setLoadingSlots] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [done, setDone] = useState(false);
+  const [submitting,   setSubmitting]   = useState(false);
+  const [done,         setDone]         = useState(false);
 
   // Calendar navigation state
   const todayMidnight = (() => { const d = new Date(); d.setHours(0,0,0,0); return d; })();
   const minDate = new Date(todayMidnight); minDate.setDate(minDate.getDate() + 1); // from tomorrow
   const maxDate = new Date(todayMidnight); maxDate.setDate(maxDate.getDate() + 60);
 
-  const [calYear,  setCalYear]  = useState(minDate.getFullYear());
-  const [calMonth, setCalMonth] = useState(minDate.getMonth());
+  const [calYear,    setCalYear]    = useState(minDate.getFullYear());
+  const [calMonth,   setCalMonth]   = useState(minDate.getMonth());
+  const [holidays,   setHolidays]   = useState<Map<string, string>>(new Map());
 
   useEffect(() => {
     getServices(true).then(setServices).catch(console.error);
+    getClinicSettings().then(setClinicSettings).catch(console.error);
   }, []);
+
+  // Load Hebrew holidays whenever the displayed year changes
+  useEffect(() => {
+    const evs = getHebrewHolidays(calYear);
+    const map = new Map(evs.map((e) => [e.date.toDateString(), e.name]));
+    setHolidays(map);
+  }, [calYear]);
 
   // Load time slots whenever service + date change
   useEffect(() => {
@@ -100,6 +111,20 @@ export default function BookPage() {
         status: "pending",
         isGuest: !user,
       });
+
+      // Fire-and-forget email to admin — don't block the user
+      fetch("/api/notify-admin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientName,
+          clientPhone,
+          serviceName: store.selectedService.name,
+          startTime:   store.selectedStartTime.toISOString(),
+          isGuest:     !user,
+        }),
+      }).catch(console.error);
+
       setDone(true);
     } catch {
       alert("שגיאה בשליחת הבקשה. נסי שוב.");
@@ -119,6 +144,7 @@ export default function BookPage() {
             startTime={store.selectedStartTime}
             endTime={store.selectedEndTime}
             clientName={clientName}
+            clinicAddress={clinicSettings?.address}
           />
           <button
             onClick={() => { store.reset(); setDone(false); }}
@@ -268,46 +294,45 @@ export default function BookPage() {
             {/* Calendar grid */}
             <div
               className="grid grid-cols-7 gap-y-1 mb-6 p-3 rounded-2xl border"
-              style={{
-                borderColor: "var(--border-color)",
-                background: "var(--surface)",
-              }}
+              style={{ borderColor: "var(--border-color)", background: "var(--surface)" }}
             >
               {calCells.map((day, i) => {
-                if (!day) return <div key={i} />;
+                if (!day) return <div key={i} className="h-12" />;
 
-                const isPast    = day < minDate;
-                const isFuture  = day > maxDate;
-                const disabled  = isPast || isFuture;
-                const selected  = store.selectedDate?.toDateString() === day.toDateString();
-                const isToday   = day.toDateString() === todayMidnight.toDateString();
+                const isPast     = day < minDate;
+                const isFuture   = day > maxDate;
+                const disabled   = isPast || isFuture;
+                const selected   = store.selectedDate?.toDateString() === day.toDateString();
+                const isToday    = day.toDateString() === todayMidnight.toDateString();
+                const holiday    = holidays.get(day.toDateString());
+                const hebrewDate = toHebrewDateShort(day);
 
                 return (
                   <button
                     key={i}
                     disabled={disabled}
                     onClick={() => store.setDate(new Date(day))}
-                    className="aspect-square flex items-center justify-center rounded-xl text-sm font-medium transition-all mx-0.5 disabled:opacity-25 disabled:cursor-not-allowed active:scale-95"
+                    title={holiday ?? undefined}
+                    className="h-12 flex flex-col items-center justify-center rounded-xl transition-all mx-0.5 disabled:opacity-25 disabled:cursor-not-allowed active:scale-95 gap-0"
                     style={{
-                      background: selected
-                        ? "var(--primary)"
-                        : isToday
-                        ? "var(--accent)"
-                        : "transparent",
-                      color: selected
-                        ? "white"
-                        : isToday
-                        ? "var(--primary-dark)"
-                        : "var(--foreground)",
-                      border: selected
-                        ? "none"
-                        : isToday
-                        ? "1.5px solid var(--primary)"
-                        : "none",
-                      fontWeight: selected ? 700 : isToday ? 600 : 400,
+                      background: selected ? "var(--primary)" : isToday ? "var(--accent)" : "transparent",
+                      color:      selected ? "white" : isToday ? "var(--primary-dark)" : "var(--foreground)",
+                      border:     selected ? "none"  : isToday ? "1.5px solid var(--primary)" : "none",
                     }}
                   >
-                    {day.getDate()}
+                    <span className="text-sm font-semibold leading-none">{day.getDate()}</span>
+                    <span
+                      className="text-[8px] leading-none mt-0.5"
+                      style={{ color: selected ? "rgba(255,255,255,0.8)" : "var(--muted-foreground)" }}
+                    >
+                      {hebrewDate}
+                    </span>
+                    {holiday && (
+                      <span
+                        className="w-1 h-1 rounded-full mt-0.5"
+                        style={{ background: selected ? "white" : "#F59E0B" }}
+                      />
+                    )}
                   </button>
                 );
               })}

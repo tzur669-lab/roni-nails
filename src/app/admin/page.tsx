@@ -1,37 +1,49 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { getTodayAppointments, getAllAppointments, updateAppointmentStatus } from "@/lib/firestore/appointments";
+import {
+  getTodayAppointments,
+  getAllAppointments,
+  getUpcomingAppointments,
+  updateAppointmentStatus,
+  cancelAppointment,
+} from "@/lib/firestore/appointments";
 import { getClinicSettings } from "@/lib/firestore/settings";
-import { buildWhatsAppApprovalLink } from "@/lib/whatsapp";
+import { buildWhatsAppApprovalLink, buildWhatsAppCancellationLink } from "@/lib/whatsapp";
 import type { Appointment, ClinicSettings } from "@/types";
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  pending:          { label: "ממתין", color: "#F59E0B" },
-  approved:         { label: "מאושר", color: "#10B981" },
-  rejected:         { label: "נדחה",  color: "#EF4444" },
-  cancelled:        { label: "בוטל",  color: "#9CA3AF" },
-  change_requested: { label: "שינוי", color: "#8B5CF6" },
+  pending:          { label: "ממתין",     color: "#F59E0B" },
+  approved:         { label: "מאושר",     color: "#10B981" },
+  rejected:         { label: "נדחה",      color: "#EF4444" },
+  cancelled:        { label: "בוטל",      color: "#9CA3AF" },
+  change_requested: { label: "שינוי",     color: "#8B5CF6" },
 };
 
 function formatTime(d: Date): string {
   return d.toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" });
 }
+function formatDateShort(d: Date): string {
+  return d.toLocaleDateString("he-IL", { weekday: "short", day: "numeric", month: "short" });
+}
 
 export default function AdminDashboard() {
-  const [todayAppts, setTodayAppts] = useState<Appointment[]>([]);
-  const [pending, setPending] = useState<Appointment[]>([]);
-  const [clinic, setClinic] = useState<ClinicSettings | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [todayAppts, setTodayAppts]   = useState<Appointment[]>([]);
+  const [pending,    setPending]      = useState<Appointment[]>([]);
+  const [upcoming,   setUpcoming]     = useState<Appointment[]>([]);
+  const [clinic,     setClinic]       = useState<ClinicSettings | null>(null);
+  const [loading,    setLoading]      = useState(true);
 
   useEffect(() => {
     Promise.all([
       getTodayAppointments(),
       getAllAppointments(),
+      getUpcomingAppointments(),
       getClinicSettings(),
-    ]).then(([today, all, c]) => {
+    ]).then(([today, all, up, c]) => {
       setTodayAppts(today);
       setPending(all.filter((a) => a.status === "pending" || a.status === "change_requested"));
+      setUpcoming(up);
       setClinic(c);
       setLoading(false);
     });
@@ -43,14 +55,16 @@ export default function AdminDashboard() {
     setTodayAppts((prev) =>
       prev.map((a) => (a.id === appt.id ? { ...a, status: "approved" } : a))
     );
-
+    setUpcoming((prev) =>
+      prev.map((a) => (a.id === appt.id ? { ...a, status: "approved" } : a))
+    );
     if (clinic) {
       const link = buildWhatsAppApprovalLink({
         clientPhone: appt.clientPhone,
-        clientName: appt.clientName,
+        clientName:  appt.clientName,
         serviceName: appt.serviceName,
-        startTime: appt.startTime.toDate(),
-        endTime: appt.endTime.toDate(),
+        startTime:   appt.startTime.toDate(),
+        endTime:     appt.endTime.toDate(),
         clinicAddress: clinic.address,
       });
       window.open(link, "_blank");
@@ -60,6 +74,26 @@ export default function AdminDashboard() {
   async function reject(id: string) {
     await updateAppointmentStatus(id, "rejected");
     setPending((prev) => prev.filter((a) => a.id !== id));
+    setTodayAppts((prev) => prev.map((a) => (a.id === id ? { ...a, status: "rejected" } : a)));
+    setUpcoming((prev) => prev.filter((a) => a.id !== id));
+  }
+
+  async function cancel(appt: Appointment) {
+    if (!confirm(`לבטל את התור של ${appt.clientName}?`)) return;
+    await cancelAppointment(appt.id);
+    setUpcoming((prev) => prev.filter((a) => a.id !== appt.id));
+    setTodayAppts((prev) => prev.map((a) => (a.id === appt.id ? { ...a, status: "cancelled" } : a)));
+    if (clinic) {
+      const link = buildWhatsAppCancellationLink({
+        clientPhone: appt.clientPhone,
+        clientName:  appt.clientName,
+        serviceName: appt.serviceName,
+        startTime:   appt.startTime.toDate(),
+        endTime:     appt.endTime.toDate(),
+        clinicAddress: clinic.address,
+      });
+      window.open(link, "_blank");
+    }
   }
 
   if (loading) {
@@ -74,9 +108,9 @@ export default function AdminDashboard() {
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-3 mb-6">
-        <StatCard label="תורים היום" value={todayAppts.length} icon="📅" />
-        <StatCard label="ממתינים לאישור" value={pending.length} icon="⏳" highlight={pending.length > 0} />
-        <StatCard label="סה״כ היום" value={todayAppts.filter(a => a.status === "approved").length} icon="✅" />
+        <StatCard label="תורים היום"       value={todayAppts.length}                              icon="📅" />
+        <StatCard label="ממתינים לאישור"   value={pending.length}   icon="⏳" highlight={pending.length > 0} />
+        <StatCard label="מאושרים היום"     value={todayAppts.filter(a => a.status === "approved").length} icon="✅" />
       </div>
 
       {/* Today schedule */}
@@ -114,7 +148,7 @@ export default function AdminDashboard() {
       )}
 
       {/* Pending approvals */}
-      <section>
+      <section className="mb-6">
         <h2 className="text-sm font-semibold mb-3" style={{ color: "var(--muted-foreground)" }}>
           ממתינים לאישור {pending.length > 0 && `(${pending.length})`}
         </h2>
@@ -131,13 +165,61 @@ export default function AdminDashboard() {
         )}
       </section>
 
+      {/* Upcoming appointments */}
+      {upcoming.length > 0 && (
+        <section className="mb-6">
+          <h2 className="text-sm font-semibold mb-3" style={{ color: "var(--muted-foreground)" }}>
+            תורים קרובים ({upcoming.length})
+          </h2>
+          <div className="flex flex-col gap-2">
+            {upcoming.map((a) => {
+              const st = STATUS_LABELS[a.status];
+              const start = a.startTime.toDate();
+              return (
+                <div
+                  key={a.id}
+                  className="p-4 rounded-2xl border"
+                  style={{ borderColor: "var(--border-color)", background: "var(--surface)" }}
+                >
+                  <div className="flex items-start justify-between mb-2">
+                    <div>
+                      <p className="font-medium text-sm" style={{ color: "var(--foreground)" }}>
+                        {a.clientName}
+                      </p>
+                      <p className="text-xs mt-0.5" style={{ color: "var(--muted-foreground)" }}>
+                        {a.serviceName} · {formatDateShort(start)} · {formatTime(start)}
+                      </p>
+                    </div>
+                    <span
+                      className="text-xs px-2 py-1 rounded-full font-medium flex-shrink-0"
+                      style={{ background: `${st?.color}20`, color: st?.color }}
+                    >
+                      {st?.label}
+                    </span>
+                  </div>
+                  {a.status === "approved" && (
+                    <button
+                      onClick={() => cancel(a)}
+                      className="text-xs px-3 py-1.5 rounded-xl border"
+                      style={{ borderColor: "#EF4444", color: "#EF4444" }}
+                    >
+                      ✕ ביטול + WhatsApp
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
       {/* Quick links */}
       <div className="grid grid-cols-2 gap-3 mt-6">
         {[
-          { href: "/admin/appointments", label: "כל התורים", icon: "📅" },
-          { href: "/admin/services", label: "שירותים", icon: "✨" },
-          { href: "/admin/availability", label: "זמינות", icon: "🗓" },
-          { href: "/admin/clients", label: "לקוחות", icon: "👥" },
+          { href: "/admin/appointments", label: "כל התורים",  icon: "📅" },
+          { href: "/admin/services",     label: "שירותים",    icon: "✨" },
+          { href: "/admin/availability", label: "זמינות",     icon: "🗓" },
+          { href: "/admin/clients",      label: "לקוחות",     icon: "👥" },
         ].map((item) => (
           <Link
             key={item.href}
@@ -154,13 +236,15 @@ export default function AdminDashboard() {
   );
 }
 
-function StatCard({ label, value, icon, highlight }: { label: string; value: number; icon: string; highlight?: boolean }) {
+function StatCard({ label, value, icon, highlight }: {
+  label: string; value: number; icon: string; highlight?: boolean;
+}) {
   return (
     <div
       className="p-4 rounded-2xl text-center border"
       style={{
         borderColor: highlight ? "var(--primary)" : "var(--border-color)",
-        background: highlight ? "var(--accent)" : "var(--surface)",
+        background:  highlight ? "var(--accent)"  : "var(--surface)",
       }}
     >
       <div className="text-2xl mb-1">{icon}</div>
@@ -177,7 +261,7 @@ function PendingCard({
 }: {
   appointment: Appointment;
   onApprove: (a: Appointment) => void;
-  onReject: (id: string) => void;
+  onReject:  (id: string) => void;
 }) {
   const start = appointment.startTime.toDate();
   return (
@@ -204,21 +288,18 @@ function PendingCard({
         <div className="mt-2 text-sm" style={{ color: "var(--muted-foreground)" }}>
           <span>{appointment.serviceName}</span>
           <span className="mx-2">·</span>
-          <span>
-            {start.toLocaleDateString("he-IL", { weekday: "short", day: "numeric", month: "short" })}
-          </span>
+          <span>{start.toLocaleDateString("he-IL", { weekday: "short", day: "numeric", month: "short" })}</span>
           <span className="mx-2">·</span>
           <span>{formatTime(start)}</span>
         </div>
       </div>
-
       <div className="flex gap-2">
         <button
           onClick={() => onApprove(appointment)}
           className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white"
           style={{ background: "#10B981" }}
         >
-          ✓ אשר + שלח WhatsApp
+          ✓ אשר + WhatsApp
         </button>
         <button
           onClick={() => onReject(appointment.id)}
