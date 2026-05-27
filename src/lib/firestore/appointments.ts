@@ -16,15 +16,17 @@ import {
 import { db } from "@/lib/firebase";
 import type { Appointment, AppointmentStatus } from "@/types";
 
-// ─── Three collections by status ───────────────────────────────────────────
-const COLL_PENDING  = "appointmentsPending";   // pending, change_requested
-const COLL_APPROVED = "appointmentsApproved";  // approved
-const COLL_REJECTED = "appointmentsRejected";  // rejected, cancelled
-const ALL_COLLS     = [COLL_PENDING, COLL_APPROVED, COLL_REJECTED] as const;
+// ─── Four collections by status ────────────────────────────────────────────
+const COLL_PENDING   = "appointmentsPending";    // pending, change_requested
+const COLL_APPROVED  = "appointmentsApproved";   // approved (future)
+const COLL_REJECTED  = "appointmentsRejected";   // rejected, cancelled
+const COLL_COMPLETED = "appointmentsCompleted";  // completed (past)
+const ALL_COLLS      = [COLL_PENDING, COLL_APPROVED, COLL_REJECTED, COLL_COMPLETED] as const;
 
 function collectionForStatus(status: AppointmentStatus): string {
-  if (status === "approved" || status === "completed") return COLL_APPROVED;
-  if (status === "rejected" || status === "cancelled")  return COLL_REJECTED;
+  if (status === "approved")                         return COLL_APPROVED;
+  if (status === "completed")                        return COLL_COMPLETED;
+  if (status === "rejected" || status === "cancelled") return COLL_REJECTED;
   return COLL_PENDING; // pending, change_requested
 }
 
@@ -87,7 +89,7 @@ export async function getTodayAppointments(): Promise<Appointment[]> {
   const start = new Date(); start.setHours(0,  0,  0,   0);
   const end   = new Date(); end.setHours(23, 59, 59, 999);
   const results = await Promise.all(
-    [COLL_PENDING, COLL_APPROVED].map((coll) =>
+    [COLL_PENDING, COLL_APPROVED, COLL_COMPLETED].map((coll) =>
       getDocs(
         query(
           collection(db, coll),
@@ -205,31 +207,49 @@ export function subscribeToAppointments(
 }
 
 /**
- * Finds all approved appointments whose endTime has already passed and
- * updates their status to "completed". Safe to call repeatedly.
- * Returns the number of appointments that were updated.
+ * Finds all approved appointments whose endTime has already passed,
+ * moves them to appointmentsCompleted, and deletes from appointmentsApproved.
+ * Safe to call repeatedly (skips docs already in COLL_COMPLETED).
+ * Returns the number of appointments moved.
  */
 export async function markPastAppointmentsAsCompleted(): Promise<number> {
   const now = Timestamp.now();
   const snap = await getDocs(
-    query(
-      collection(db, COLL_APPROVED),
-      where("endTime", "<=", now)
-    )
+    query(collection(db, COLL_APPROVED), where("endTime", "<=", now))
   );
-  // Filter in JS to skip docs that are already "completed"
-  const docsToUpdate = snap.docs.filter((d) => d.data().status === "approved");
-  if (docsToUpdate.length === 0) return 0;
+  // Only move docs that are still "approved" (not already completed)
+  const docsToMove = snap.docs.filter((d) => d.data().status === "approved");
+  if (docsToMove.length === 0) return 0;
 
   const batch = writeBatch(db);
-  docsToUpdate.forEach((d) => {
-    batch.update(doc(db, COLL_APPROVED, d.id), {
+  docsToMove.forEach((d) => {
+    // Write to completed collection
+    batch.set(doc(db, COLL_COMPLETED, d.id), {
+      ...d.data(),
       status: "completed",
       updatedAt: serverTimestamp(),
     });
+    // Remove from approved collection
+    batch.delete(doc(db, COLL_APPROVED, d.id));
   });
   await batch.commit();
-  return docsToUpdate.length;
+  return docsToMove.length;
+}
+
+/**
+ * Creates an appointment directly in the correct collection based on its status.
+ * Used by admin to manually add appointments (e.g. "approved" goes to COLL_APPROVED).
+ */
+export async function createAdminAppointment(
+  data: Omit<Appointment, "id" | "createdAt" | "updatedAt">
+): Promise<string> {
+  const coll = collectionForStatus(data.status);
+  const ref = await addDoc(collection(db, coll), {
+    ...data,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  return ref.id;
 }
 
 /**

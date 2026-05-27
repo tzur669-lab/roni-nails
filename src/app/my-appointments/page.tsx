@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
-import { getClientAppointments, cancelAppointment, markPastAppointmentsAsCompleted } from "@/lib/firestore/appointments";
+import { getClientAppointments, cancelAppointment } from "@/lib/firestore/appointments";
 import { getClinicSettings } from "@/lib/firestore/settings";
 import { buildWhatsAppContactLink } from "@/lib/whatsapp";
 import { AppShell } from "@/components/shared/AppShell";
@@ -36,15 +36,10 @@ export default function MyAppointmentsPage() {
 
   useEffect(() => {
     if (!user) { setLoading(false); return; }
-    // Mark past approved appointments as completed first, then fetch
-    markPastAppointmentsAsCompleted()
-      .catch(console.error)
-      .finally(() => {
-        getClientAppointments(user.uid).then((a) => {
-          setAppointments(a);
-          setLoading(false);
-        });
-      });
+    getClientAppointments(user.uid).then((a) => {
+      setAppointments(a);
+      setLoading(false);
+    });
   }, [user]);
 
   async function handleCancel(id: string) {
@@ -55,15 +50,23 @@ export default function MyAppointmentsPage() {
     );
   }
 
+  const now = new Date();
+  // Visually remap: approved appointments whose end time has passed → show as "completed"
+  const displayAppts = appointments.map((a) => ({
+    ...a,
+    status:
+      a.status === "approved" && a.endTime.toDate() <= now
+        ? ("completed" as const)
+        : a.status,
+  }));
+
   // Upcoming: future appointments that are not cancelled/rejected
-  const upcoming = appointments.filter(
-    (a) => a.startTime.toDate() > new Date() && a.status !== "cancelled" && a.status !== "rejected"
+  const upcoming = displayAppts.filter(
+    (a) => a.startTime.toDate() > now && a.status !== "cancelled" && a.status !== "rejected"
   );
-  // History: completed appointments + approved ones that already happened (pre-completion)
-  const past = appointments.filter(
-    (a) =>
-      a.status === "completed" ||
-      (a.status === "approved" && a.startTime.toDate() <= new Date())
+  // History: completed + anything that already happened (incl. visual remap)
+  const past = displayAppts.filter(
+    (a) => a.status === "completed" || (a.status === "approved" && a.startTime.toDate() <= now)
   );
 
   if (!user) {

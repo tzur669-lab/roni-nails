@@ -48,7 +48,7 @@ export default function BookPage() {
 
   // Calendar navigation state
   const todayMidnight = (() => { const d = new Date(); d.setHours(0,0,0,0); return d; })();
-  const minDate = new Date(todayMidnight); minDate.setDate(minDate.getDate() + 1); // from tomorrow
+  const minDate = todayMidnight; // today is bookable
   const maxDate = new Date(todayMidnight); maxDate.setDate(maxDate.getDate() + 60);
 
   const [calYear,    setCalYear]    = useState(minDate.getFullYear());
@@ -86,7 +86,13 @@ export default function BookPage() {
         blocked,
         existing
       );
-      setSlots(generated);
+      // If today is selected, hide slots whose start time has already passed
+      const isToday = store.selectedDate!.toDateString() === new Date().toDateString();
+      const now = new Date();
+      const finalSlots = isToday
+        ? generated.filter((s) => s.startTime > now)
+        : generated;
+      setSlots(finalSlots);
       setLoadingSlots(false);
     }).catch(() => { setSlots([]); setLoadingSlots(false); });
   }, [store.selectedService, store.selectedDate]);

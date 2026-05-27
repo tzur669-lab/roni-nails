@@ -157,6 +157,12 @@ firebase deploy --only firestore:rules
 - **Change:** Slot interval changed from 10 min to 5 min (`booking-logic.ts`). Removed the :00/:10 vs :05/:15 offset toggle from `TimeSlotPicker`.
 - **Fix (minor):** `admin/layout.tsx` — "הסלון" nav item icon changed from 🏠 (duplicate of "לוח ראשי") to 💅.
 
+### 2026-05-27 (session 3)
+- **Fix:** Booking page now allows selecting today. Past time slots for today are filtered out after generation (not shown to clients). `minDate` changed from `tomorrow` to `today`.
+- **Fix (critical):** `"completed"` appointments now move to a dedicated `appointmentsCompleted` Firestore collection (instead of staying in `appointmentsApproved`). `markPastAppointmentsAsCompleted()` uses a batch set+delete to atomically move documents. `getTodayAppointments` updated to include `COLL_COMPLETED`. Firestore rules updated.
+- **Feature:** Admin can manually add an appointment at `/admin/appointments/new`. Choose a registered client (searchable list) or enter any name+phone, pick a service, date, and time — creates directly as "approved". Link: "+ הוסף תור" button in ניהול תורים.
+- **Change:** `my-appointments` page no longer calls `markPastAppointmentsAsCompleted` (was causing permission issues for non-admin users). Instead, past approved appointments are visually remapped to "completed" on the client side based on `endTime`.
+
 ### 2026-05-27 (session 2)
 - **Feature:** Email is now optional on the signup form. If left blank, Firebase Auth uses a generated placeholder email (`noemail_<timestamp>@placeholder.com`) and Firestore stores `""` for the email field. Users who sign up without email can log in via Google.
 - **Feature:** New `"completed"` appointment status. Any approved appointment whose `endTime` has passed is automatically marked as `"completed"` (sky-blue "בוצע ✓" badge) when the admin dashboard or "My Appointments" page loads. The transition runs client-side via `markPastAppointmentsAsCompleted()` in `src/lib/firestore/appointments.ts`. Firestore rules updated to allow authenticated owners to mark their own past appointments as completed.

@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import {
   getAllAppointments, updateAppointmentStatus, cancelAppointment,
   migrateFromLegacyCollection, hasLegacyAppointments,
@@ -155,9 +156,18 @@ export default function AdminAppointmentsPage() {
 
   return (
     <div className="pb-20 md:pb-6">
-      <h1 className="text-xl font-bold mb-4" style={{ color: "var(--foreground)" }}>
-        ניהול תורים
-      </h1>
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-xl font-bold" style={{ color: "var(--foreground)" }}>
+          ניהול תורים
+        </h1>
+        <Link
+          href="/admin/appointments/new"
+          className="flex items-center gap-1.5 px-4 py-2 rounded-2xl text-sm font-semibold text-white"
+          style={{ background: "var(--primary)" }}
+        >
+          + הוסף תור
+        </Link>
+      </div>
 
       {/* One-time migration banner */}
       {showMigrate && (
