@@ -10,7 +10,7 @@ const ADMIN_NAV = [
   { href: "/admin/services", label: "שירותים", icon: "✨" },
   { href: "/admin/availability", label: "זמינות", icon: "🗓" },
   { href: "/admin/clients", label: "לקוחות", icon: "👥" },
-  { href: "/admin/clinic", label: "הסלון", icon: "💅" },
+  { href: "/admin/clinic", label: "פרטים ומידע", icon: "💅" },
   { href: "/admin/payment", label: "תשלום", icon: "💳" },
 ];
 
@@ -39,7 +39,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         style={{ background: "var(--surface)", borderBottom: "1px solid var(--border-color)" }}
       >
         <Link href="/" className="text-lg font-bold" style={{ color: "var(--primary-dark)" }}>
-          💅 רוני ניילס
+          💅 רני חנימוב
         </Link>
         <span className="text-xs px-2 py-1 rounded-full font-medium" style={{ background: "var(--accent)", color: "var(--primary-dark)" }}>
           ממשק ניהול

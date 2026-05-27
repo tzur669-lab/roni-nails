@@ -20,7 +20,7 @@ export function buildWhatsAppApprovalLink(params: WhatsAppParams): string {
   });
 
   const calLink = buildGoogleCalendarLink({
-    title: "תור אצל רוני ניילס",
+    title: "תור ללק רני חנימוב",
     startTime,
     endTime,
     description: `שירות: ${serviceName}`,

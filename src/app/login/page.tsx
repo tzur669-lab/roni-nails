@@ -72,7 +72,7 @@ export default function LoginPage() {
         <div className="text-center mb-8">
           <div className="text-5xl mb-3">💅</div>
           <h1 className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
-            רוני ניילס
+            רני חנימוב
           </h1>
           <p className="text-sm mt-1" style={{ color: "var(--muted-foreground)" }}>
             {mode === "login" ? "ברוכה הבאה" : "צרי חשבון חדש"}

@@ -31,7 +31,7 @@ export default function ClinicPage() {
     return (
       <AppShell>
         <div className="pt-16 text-center">
-          <p style={{ color: "var(--muted-foreground)" }}>פרטי הסלון טרם הוגדרו</p>
+          <p style={{ color: "var(--muted-foreground)" }}>פרטים ומידע טרם הוגדרו</p>
         </div>
       </AppShell>
     );
@@ -66,16 +66,29 @@ export default function ClinicPage() {
           <h2 className="text-sm font-semibold mb-2" style={{ color: "var(--foreground)" }}>📍 כתובת</h2>
           <p className="text-sm mb-3" style={{ color: "var(--muted-foreground)" }}>{clinic.address}</p>
           {clinic.googleMapsUrl && (
-            <div className="w-full h-48 rounded-xl overflow-hidden">
-              <iframe
-                src={clinic.googleMapsUrl}
-                width="100%"
-                height="100%"
-                loading="lazy"
-                referrerPolicy="no-referrer-when-downgrade"
-                className="border-0"
-              />
-            </div>
+            clinic.googleMapsUrl.includes("/maps/embed") ? (
+              <div className="w-full h-48 rounded-xl overflow-hidden">
+                <iframe
+                  src={clinic.googleMapsUrl}
+                  width="100%"
+                  height="100%"
+                  loading="lazy"
+                  allowFullScreen
+                  referrerPolicy="no-referrer-when-downgrade"
+                  className="border-0"
+                />
+              </div>
+            ) : (
+              <a
+                href={clinic.googleMapsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 w-full py-3 rounded-xl font-medium text-sm"
+                style={{ background: "var(--accent)", color: "var(--primary-dark)", border: "1px solid var(--border-color)" }}
+              >
+                <span>🗺️</span> פתח במפות גוגל
+              </a>
+            )
           )}
         </div>
 

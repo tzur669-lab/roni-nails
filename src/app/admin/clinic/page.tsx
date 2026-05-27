@@ -5,7 +5,7 @@ import type { ClinicSettings } from "@/types";
 
 const DEFAULT_HOURS = { open: "09:00", close: "19:00", isOpen: true };
 const DEFAULT: ClinicSettings = {
-  name: "רוני ניילס",
+  name: "רני חנימוב",
   address: "",
   phone: "",
   whatsappNumber: "",
@@ -63,7 +63,7 @@ export default function AdminClinicPage() {
   return (
     <div className="pb-20 md:pb-6">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-xl font-bold" style={{ color: "var(--foreground)" }}>פרטי הסלון</h1>
+        <h1 className="text-xl font-bold" style={{ color: "var(--foreground)" }}>פרטים ומידע</h1>
         <button onClick={save} disabled={saving}
           className="px-4 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-60"
           style={{ background: saved ? "#10B981" : "var(--primary)" }}>
@@ -73,12 +73,12 @@ export default function AdminClinicPage() {
 
       <div className="flex flex-col gap-4">
         <Section title="פרטים כלליים">
-          <Input label="שם הסלון" value={clinic.name} onChange={(v) => setField("name", v)} />
+          <Input label="שם" value={clinic.name} onChange={(v) => setField("name", v)} />
           <Input label="כתובת" value={clinic.address} onChange={(v) => setField("address", v)} />
           <Input label="טלפון" value={clinic.phone} onChange={(v) => setField("phone", v)} type="tel" dir="ltr" />
           <Input label="WhatsApp (ללא רווחים, עם קידומת 972)" value={clinic.whatsappNumber} onChange={(v) => setField("whatsappNumber", v)} dir="ltr" />
           <Input label="אינסטגרם URL" value={clinic.instagramUrl} onChange={(v) => setField("instagramUrl", v)} dir="ltr" />
-          <Input label="Google Maps Embed URL" value={clinic.googleMapsUrl} onChange={(v) => setField("googleMapsUrl", v)} dir="ltr" />
+          <Input label="Google Maps URL (קישור רגיל או Embed)" value={clinic.googleMapsUrl} onChange={(v) => setField("googleMapsUrl", v)} dir="ltr" />
         </Section>
 
         <Section title="שעות פעילות">

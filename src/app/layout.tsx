@@ -13,8 +13,8 @@ const heebo = Heebo({
 });
 
 export const metadata: Metadata = {
-  title: "רוני ניילס | Roni Nails",
-  description: "סלון ציפורניים מקצועי — הזמינו תור בקלות",
+  title: "רני חנימוב | לק ג׳ל מקצועי",
+  description: "לק ג׳ל מקצועי ואישי — הזמיני תור בקלות",
   manifest: "/manifest.json",
   icons: { apple: "/icons/apple-touch-icon.png" },
   other: {

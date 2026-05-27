@@ -12,7 +12,7 @@ export default function HomePage() {
         >
           <div className="text-6xl mb-4">💅</div>
           <h1 className="text-3xl font-bold mb-2" style={{ color: "var(--foreground)" }}>
-            רוני ניילס
+            רני חנימוב
           </h1>
           <p className="text-base mb-6" style={{ color: "var(--muted-foreground)" }}>
             טיפוח ציפורניים מקצועי ואישי

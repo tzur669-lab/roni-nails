@@ -17,7 +17,7 @@ function formatTime(d: Date): string {
 
 export function BookingConfirmation({ service, startTime, endTime, clientName, clinicAddress }: Props) {
   const calendarLink = buildGoogleCalendarLink({
-    title: `תור אצל רוני ניילס — ${service.name}`,
+    title: `תור ללק רני חנימוב — ${service.name}`,
     startTime,
     endTime,
     description: `שירות: ${service.name}${service.price ? ` · מחיר: ₪${service.price}` : ""}`,
@@ -36,7 +36,7 @@ export function BookingConfirmation({ service, startTime, endTime, clientName, c
           הבקשה נשלחה!
         </h2>
         <p className="text-sm leading-relaxed" style={{ color: "var(--muted-foreground)" }}>
-          רוני תאשר את התור ותעדכן אותך בקרוב בוואטסאפ
+          רני תאשר את התור ותעדכן אותך בקרוב בוואטסאפ
         </p>
       </div>
 

@@ -6,7 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 const NAV_ITEMS = [
   { href: "/", label: "בית" },
   { href: "/book", label: "הזמן תור" },
-  { href: "/clinic", label: "הסלון" },
+  { href: "/clinic", label: "פרטים ומידע" },
   { href: "/my-appointments", label: "התורים שלי" },
 ];
 
@@ -29,7 +29,7 @@ export function Navbar() {
     >
       <div className="max-w-2xl mx-auto px-4 h-16 flex items-center justify-between">
         <Link href="/" className="text-xl font-bold" style={{ color: "var(--primary-dark)" }}>
-          💅 רוני ניילס
+          💅 רני חנימוב
         </Link>
 
         <nav className="flex items-center gap-1">

@@ -1,5 +1,22 @@
 import { HDate, HebrewCalendar } from "@hebcal/core";
 
+// Hebrew month names in Hebrew script
+const HEBREW_MONTH_NAMES: Record<number, string> = {
+  1:  "ניסן",
+  2:  "אייר",
+  3:  "סיוון",
+  4:  "תמוז",
+  5:  "אב",
+  6:  "אלול",
+  7:  "תשרי",
+  8:  "חשוון",
+  9:  "כסלו",
+  10: "טבת",
+  11: "שבט",
+  12: "אדר",
+  13: "אדר ב׳",
+};
+
 export function toHebrewDate(date: Date): string {
   const hd = new HDate(date);
   return hd.renderGematriya(); // e.g. "כ״ו אייר תשפ״ו"
@@ -8,7 +25,7 @@ export function toHebrewDate(date: Date): string {
 export function toHebrewDateShort(date: Date): string {
   const hd = new HDate(date);
   const day = hd.getDate();
-  const month = hd.getMonthName();
+  const month = HEBREW_MONTH_NAMES[hd.getMonth()] ?? hd.getMonthName();
   return `${numberToHebrew(day)} ${month}`;
 }
 

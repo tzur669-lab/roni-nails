@@ -99,7 +99,7 @@ export default function BookPage() {
       const clientName = appUser?.name  ?? guestInfo?.name  ?? "";
       const clientPhone= appUser?.phone ?? guestInfo?.phone ?? "";
 
-      await createAppointment({
+      const appointmentId = await createAppointment({
         clientId,
         clientName,
         clientPhone,
@@ -119,9 +119,10 @@ export default function BookPage() {
         body: JSON.stringify({
           clientName,
           clientPhone,
-          serviceName: store.selectedService.name,
-          startTime:   store.selectedStartTime.toISOString(),
-          isGuest:     !user,
+          serviceName:   store.selectedService.name,
+          startTime:     store.selectedStartTime.toISOString(),
+          isGuest:       !user,
+          appointmentId,
         }),
       }).catch(console.error);
 

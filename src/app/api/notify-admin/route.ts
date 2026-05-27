@@ -9,11 +9,12 @@ interface NotifyPayload {
   serviceName: string;
   startTime: string; // ISO string
   isGuest: boolean;
+  appointmentId?: string;
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const { clientName, clientPhone, serviceName, startTime, isGuest } =
+    const { clientName, clientPhone, serviceName, startTime, isGuest, appointmentId } =
       (await req.json()) as NotifyPayload;
 
     const adminEmail = process.env.ADMIN_EMAIL;
@@ -35,6 +36,12 @@ export async function POST(req: NextRequest) {
     });
 
     const guestLabel = isGuest ? " (אורח/ת ללא חשבון)" : "";
+
+    // Build direct approval link
+    const origin = req.headers.get("origin") ?? `https://${req.headers.get("host")}`;
+    const approvalUrl = appointmentId
+      ? `${origin}/admin/appointments`
+      : `${origin}/admin/appointments`;
 
     await resend.emails.send({
       from: "Roni Nails <onboarding@resend.dev>",
@@ -68,8 +75,17 @@ export async function POST(req: NextRequest) {
             </tr>
           </table>
 
-          <p style="margin-top: 20px; color: #888; font-size: 13px; text-align: center;">
-            כנסי לאפליקציה כדי לאשר או לדחות את הבקשה.
+          <div style="margin-top: 24px; text-align: center;">
+            <a
+              href="${approvalUrl}"
+              style="display: inline-block; padding: 14px 32px; background: #c9a882; color: white; text-decoration: none; border-radius: 12px; font-weight: bold; font-size: 16px;"
+            >
+              ✓ לאישור / דחיית התור
+            </a>
+          </div>
+
+          <p style="margin-top: 16px; color: #888; font-size: 13px; text-align: center;">
+            לחצי על הכפתור כדי לאשר או לדחות את הבקשה
           </p>
         </div>
       `,
