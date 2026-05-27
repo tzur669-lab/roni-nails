@@ -22,7 +22,17 @@ export function useAuth() {
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
       if (firebaseUser) {
-        const u = await getUser(firebaseUser.uid);
+        let u = await getUser(firebaseUser.uid);
+        if (!u) {
+          // Firestore doc missing — create it (happens if signup Firestore write failed)
+          await createUser(firebaseUser.uid, {
+            name: firebaseUser.displayName ?? "",
+            email: firebaseUser.email ?? "",
+            phone: "",
+            role: firebaseUser.uid === ADMIN_UID ? "admin" : "client",
+          }).catch(console.error);
+          u = await getUser(firebaseUser.uid);
+        }
         setAppUser(u);
       } else {
         setAppUser(null);
@@ -34,6 +44,7 @@ export function useAuth() {
 
   async function signInWithGoogle() {
     const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: "select_account" });
     const result = await signInWithPopup(auth, provider);
     const u = await getUser(result.user.uid);
     if (!u) {
@@ -53,12 +64,17 @@ export function useAuth() {
 
   async function signUpWithEmail(email: string, password: string, name: string) {
     const result = await createUserWithEmailAndPassword(auth, email, password);
-    await createUser(result.user.uid, {
-      name,
-      email,
-      phone: "",
-      role: result.user.uid === ADMIN_UID ? "admin" : "client",
-    });
+    try {
+      await createUser(result.user.uid, {
+        name,
+        email,
+        phone: "",
+        role: result.user.uid === ADMIN_UID ? "admin" : "client",
+      });
+    } catch (err) {
+      // Auth user created successfully — Firestore doc will be created on next load
+      console.error("Firestore createUser failed after signup:", err);
+    }
     return result.user;
   }
 

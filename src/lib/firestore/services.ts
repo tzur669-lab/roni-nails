@@ -7,7 +7,6 @@ import {
   deleteDoc,
   query,
   where,
-  orderBy,
   serverTimestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -16,11 +15,12 @@ import type { Service } from "@/types";
 const COL = "services";
 
 export async function getServices(activeOnly = false): Promise<Service[]> {
-  let q = activeOnly
-    ? query(collection(db, COL), where("active", "==", true), orderBy("order"))
-    : query(collection(db, COL), orderBy("order"));
+  const q = activeOnly
+    ? query(collection(db, COL), where("active", "==", true))
+    : query(collection(db, COL));
   const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Service);
+  const services = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Service);
+  return services.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 }
 
 export async function addService(

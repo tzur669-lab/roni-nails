@@ -84,8 +84,6 @@ export function PhoneInput({ uid, onDone }: Props) {
       const currentUser = auth.currentUser;
       if (!currentUser) throw new Error("לא מחובר");
 
-      await updateUserPhone(uid, cleaned, false);
-
       const result = await linkWithPhoneNumber(
         currentUser,
         fullPhone,
@@ -98,8 +96,14 @@ export function PhoneInput({ uid, onDone }: Props) {
       console.error("[PhoneInput] error:", code, err);
 
       if (code === "auth/provider-already-linked") {
-        await updateUserPhone(uid, cleaned, true);
-        onDone();
+        // Phone already linked in Firebase Auth — only auto-verify if it's the same number
+        const existingPhone = auth.currentUser?.phoneNumber;
+        if (existingPhone && existingPhone === fullPhone) {
+          await updateUserPhone(uid, cleaned, true);
+          onDone();
+          return;
+        }
+        setError("חשבון זה כבר משויך למספר טלפון אחר. פנה לרוני לעזרה.");
         return;
       }
 

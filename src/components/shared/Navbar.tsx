@@ -11,7 +11,7 @@ const NAV_ITEMS = [
 ];
 
 export function Navbar() {
-  const { user, isAdmin, logout } = useAuth();
+  const { user, appUser, isAdmin, logout } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
 
@@ -63,13 +63,21 @@ export function Navbar() {
           )}
 
           {user ? (
-            <button
-              onClick={handleLogout}
-              className="px-3 py-2 rounded-xl text-sm font-medium"
-              style={{ color: "var(--muted-foreground)" }}
-            >
-              יציאה
-            </button>
+            <>
+              <span
+                className="text-sm font-medium px-3 py-1.5 rounded-xl"
+                style={{ color: "var(--primary-dark)", background: "var(--accent)" }}
+              >
+                שלום, {appUser?.name ?? user.displayName ?? ""}
+              </span>
+              <button
+                onClick={handleLogout}
+                className="px-3 py-2 rounded-xl text-sm font-medium"
+                style={{ color: "var(--muted-foreground)" }}
+              >
+                יציאה
+              </button>
+            </>
           ) : (
             <Link
               href="/login"

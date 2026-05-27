@@ -40,6 +40,9 @@ export default function AdminDashboard() {
   async function approve(appt: Appointment) {
     await updateAppointmentStatus(appt.id, "approved");
     setPending((prev) => prev.filter((a) => a.id !== appt.id));
+    setTodayAppts((prev) =>
+      prev.map((a) => (a.id === appt.id ? { ...a, status: "approved" } : a))
+    );
 
     if (clinic) {
       const link = buildWhatsAppApprovalLink({

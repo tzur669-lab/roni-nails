@@ -1,15 +1,14 @@
 import { Timestamp } from "firebase/firestore";
 import type { AvailabilityRule, BlockedTime, TimeSlot } from "@/types";
 
-const SLOT_INTERVAL_MINUTES = 10;
+const SLOT_INTERVAL_MINUTES = 5;
 
 export function generateTimeSlots(
   date: Date,
   serviceDuration: number,
   rules: AvailabilityRule[],
   blockedTimes: BlockedTime[],
-  existingSlots: Array<{ start: Date; end: Date }>,
-  startOffsetMinutes = 0
+  existingSlots: Array<{ start: Date; end: Date }>
 ): TimeSlot[] {
   const dayOfWeek = date.getDay();
 
@@ -33,9 +32,6 @@ export function generateTimeSlots(
   const slots: TimeSlot[] = [];
   const current = new Date(date);
   current.setHours(openH, openM, 0, 0);
-  if (startOffsetMinutes > 0) {
-    current.setMinutes(current.getMinutes() + startOffsetMinutes);
-  }
 
   const closeTime = new Date(date);
   closeTime.setHours(closeH, closeM, 0, 0);

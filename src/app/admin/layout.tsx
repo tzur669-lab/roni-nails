@@ -10,7 +10,7 @@ const ADMIN_NAV = [
   { href: "/admin/services", label: "שירותים", icon: "✨" },
   { href: "/admin/availability", label: "זמינות", icon: "🗓" },
   { href: "/admin/clients", label: "לקוחות", icon: "👥" },
-  { href: "/admin/clinic", label: "הסלון", icon: "🏠" },
+  { href: "/admin/clinic", label: "הסלון", icon: "💅" },
   { href: "/admin/payment", label: "תשלום", icon: "💳" },
 ];
 

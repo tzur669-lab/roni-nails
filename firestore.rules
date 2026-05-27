@@ -26,9 +26,13 @@ service cloud.firestore {
 
     // Appointments — client can read/write own, admin can read/write all
     match /appointments/{id} {
-      allow read: if request.auth != null && (
+      // Single document read: only the owner or admin
+      allow get: if request.auth != null && (
         resource.data.clientId == request.auth.uid || isAdmin()
       );
+      // List/query: allowed for everyone — needed for slot availability check
+      // and overlap detection during booking (both guests and logged-in users)
+      allow list: if true;
       allow create: if true; // guests can create
       allow update: if request.auth != null && (
         resource.data.clientId == request.auth.uid || isAdmin()
