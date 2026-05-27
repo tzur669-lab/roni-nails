@@ -33,6 +33,7 @@ export default function AdminDashboard() {
   const [upcoming,   setUpcoming]     = useState<Appointment[]>([]);
   const [clinic,     setClinic]       = useState<ClinicSettings | null>(null);
   const [loading,    setLoading]      = useState(true);
+  const [loadingId,  setLoadingId]    = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -50,49 +51,73 @@ export default function AdminDashboard() {
   }, []);
 
   async function approve(appt: Appointment) {
-    await updateAppointmentStatus(appt.id, "approved");
-    setPending((prev) => prev.filter((a) => a.id !== appt.id));
-    setTodayAppts((prev) =>
-      prev.map((a) => (a.id === appt.id ? { ...a, status: "approved" } : a))
-    );
-    setUpcoming((prev) =>
-      prev.map((a) => (a.id === appt.id ? { ...a, status: "approved" } : a))
-    );
-    if (clinic) {
-      const link = buildWhatsAppApprovalLink({
-        clientPhone: appt.clientPhone,
-        clientName:  appt.clientName,
-        serviceName: appt.serviceName,
-        startTime:   appt.startTime.toDate(),
-        endTime:     appt.endTime.toDate(),
-        clinicAddress: clinic.address,
-      });
-      window.open(link, "_blank");
+    setLoadingId(appt.id + "-approve");
+    try {
+      await updateAppointmentStatus(appt.id, "approved");
+      setPending((prev) => prev.filter((a) => a.id !== appt.id));
+      setTodayAppts((prev) =>
+        prev.map((a) => (a.id === appt.id ? { ...a, status: "approved" } : a))
+      );
+      setUpcoming((prev) =>
+        prev.map((a) => (a.id === appt.id ? { ...a, status: "approved" } : a))
+      );
+      if (clinic) {
+        const link = buildWhatsAppApprovalLink({
+          clientPhone: appt.clientPhone,
+          clientName:  appt.clientName,
+          serviceName: appt.serviceName,
+          startTime:   appt.startTime.toDate(),
+          endTime:     appt.endTime.toDate(),
+          clinicAddress: clinic.address,
+        });
+        window.open(link, "_blank");
+      }
+    } catch (err) {
+      console.error("approve failed:", err);
+      alert("שגיאה באישור התור. נסי שנית.");
+    } finally {
+      setLoadingId(null);
     }
   }
 
   async function reject(id: string) {
-    await updateAppointmentStatus(id, "rejected");
-    setPending((prev) => prev.filter((a) => a.id !== id));
-    setTodayAppts((prev) => prev.map((a) => (a.id === id ? { ...a, status: "rejected" } : a)));
-    setUpcoming((prev) => prev.filter((a) => a.id !== id));
+    setLoadingId(id + "-reject");
+    try {
+      await updateAppointmentStatus(id, "rejected");
+      setPending((prev) => prev.filter((a) => a.id !== id));
+      setTodayAppts((prev) => prev.map((a) => (a.id === id ? { ...a, status: "rejected" } : a)));
+      setUpcoming((prev) => prev.filter((a) => a.id !== id));
+    } catch (err) {
+      console.error("reject failed:", err);
+      alert("שגיאה בדחיית התור. נסי שנית.");
+    } finally {
+      setLoadingId(null);
+    }
   }
 
   async function cancel(appt: Appointment) {
     if (!confirm(`לבטל את התור של ${appt.clientName}?`)) return;
-    await cancelAppointment(appt.id);
-    setUpcoming((prev) => prev.filter((a) => a.id !== appt.id));
-    setTodayAppts((prev) => prev.map((a) => (a.id === appt.id ? { ...a, status: "cancelled" } : a)));
-    if (clinic) {
-      const link = buildWhatsAppCancellationLink({
-        clientPhone: appt.clientPhone,
-        clientName:  appt.clientName,
-        serviceName: appt.serviceName,
-        startTime:   appt.startTime.toDate(),
-        endTime:     appt.endTime.toDate(),
-        clinicAddress: clinic.address,
-      });
-      window.open(link, "_blank");
+    setLoadingId(appt.id + "-cancel");
+    try {
+      await cancelAppointment(appt.id);
+      setUpcoming((prev) => prev.filter((a) => a.id !== appt.id));
+      setTodayAppts((prev) => prev.map((a) => (a.id === appt.id ? { ...a, status: "cancelled" } : a)));
+      if (clinic) {
+        const link = buildWhatsAppCancellationLink({
+          clientPhone: appt.clientPhone,
+          clientName:  appt.clientName,
+          serviceName: appt.serviceName,
+          startTime:   appt.startTime.toDate(),
+          endTime:     appt.endTime.toDate(),
+          clinicAddress: clinic.address,
+        });
+        window.open(link, "_blank");
+      }
+    } catch (err) {
+      console.error("cancel failed:", err);
+      alert("שגיאה בביטול התור. נסי שנית.");
+    } finally {
+      setLoadingId(null);
     }
   }
 
@@ -159,7 +184,13 @@ export default function AdminDashboard() {
         ) : (
           <div className="flex flex-col gap-3">
             {pending.map((a) => (
-              <PendingCard key={a.id} appointment={a} onApprove={approve} onReject={reject} />
+              <PendingCard
+                key={a.id}
+                appointment={a}
+                onApprove={approve}
+                onReject={reject}
+                loadingId={loadingId}
+              />
             ))}
           </div>
         )}
@@ -200,10 +231,11 @@ export default function AdminDashboard() {
                   {a.status === "approved" && (
                     <button
                       onClick={() => cancel(a)}
-                      className="text-xs px-3 py-1.5 rounded-xl border"
+                      disabled={loadingId === a.id + "-cancel"}
+                      className="text-xs px-3 py-1.5 rounded-xl border disabled:opacity-50"
                       style={{ borderColor: "#EF4444", color: "#EF4444" }}
                     >
-                      ✕ ביטול + WhatsApp
+                      {loadingId === a.id + "-cancel" ? "..." : "✕ ביטול + WhatsApp"}
                     </button>
                   )}
                 </div>
@@ -258,12 +290,17 @@ function PendingCard({
   appointment,
   onApprove,
   onReject,
+  loadingId,
 }: {
   appointment: Appointment;
-  onApprove: (a: Appointment) => void;
-  onReject:  (id: string) => void;
+  onApprove:   (a: Appointment) => void;
+  onReject:    (id: string) => void;
+  loadingId:   string | null;
 }) {
-  const start = appointment.startTime.toDate();
+  const start       = appointment.startTime.toDate();
+  const isApproving = loadingId === appointment.id + "-approve";
+  const isRejecting = loadingId === appointment.id + "-reject";
+  const isBusy      = isApproving || isRejecting;
   return (
     <div
       className="p-5 rounded-2xl border-2"
@@ -296,17 +333,19 @@ function PendingCard({
       <div className="flex gap-2">
         <button
           onClick={() => onApprove(appointment)}
-          className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white"
+          disabled={isBusy}
+          className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50"
           style={{ background: "#10B981" }}
         >
-          ✓ אשר + WhatsApp
+          {isApproving ? "..." : "✓ אשר + WhatsApp"}
         </button>
         <button
           onClick={() => onReject(appointment.id)}
-          className="flex-1 py-2.5 rounded-xl text-sm font-semibold border-2"
+          disabled={isBusy}
+          className="flex-1 py-2.5 rounded-xl text-sm font-semibold border-2 disabled:opacity-50"
           style={{ borderColor: "#EF4444", color: "#EF4444" }}
         >
-          ✕ דחה
+          {isRejecting ? "..." : "✕ דחה"}
         </button>
       </div>
     </div>

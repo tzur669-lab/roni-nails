@@ -24,19 +24,60 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // Appointments — client can read/write own, admin can read/write all
+    // Appointments (legacy flat collection — kept for backward compatibility during migration)
     match /appointments/{id} {
-      // Single document read: only the owner or admin
       allow get: if request.auth != null && (
         resource.data.clientId == request.auth.uid || isAdmin()
       );
-      // List/query: allowed for everyone — needed for slot availability check
-      // and overlap detection during booking (both guests and logged-in users)
       allow list: if true;
-      allow create: if true; // guests can create
+      allow create: if true;
       allow update: if request.auth != null && (
         resource.data.clientId == request.auth.uid || isAdmin()
       );
+    }
+
+    // Appointments — three collections by status (current architecture)
+
+    // appointmentsPending — pending + change_requested bookings
+    match /appointmentsPending/{id} {
+      // List/query: public — needed for slot availability check by guests + clients
+      allow list:   if true;
+      // Single-doc read: only the owner or admin
+      allow get:    if request.auth != null && (
+        resource.data.clientId == request.auth.uid || isAdmin()
+      );
+      // Create: guests can book without login
+      allow create: if true;
+      // Update: owner (reschedule request) or admin (approve/reject)
+      allow update: if request.auth != null && (
+        resource.data.clientId == request.auth.uid || isAdmin()
+      );
+      // Delete: admin only — used in batch move when approving/rejecting
+      allow delete: if isAdmin();
+    }
+
+    // appointmentsApproved — approved bookings
+    match /appointmentsApproved/{id} {
+      // List/query: public — needed for slot availability check
+      allow list:   if true;
+      // Single-doc read: owner or admin
+      allow get:    if request.auth != null && (
+        resource.data.clientId == request.auth.uid || isAdmin()
+      );
+      // All writes (create via batch move, update, delete/cancel): admin only
+      allow write:  if isAdmin();
+    }
+
+    // appointmentsRejected — rejected + cancelled bookings
+    match /appointmentsRejected/{id} {
+      // List/query: admin only (no need to expose rejected slots publicly)
+      allow list:   if isAdmin();
+      // Single-doc read: owner or admin
+      allow get:    if request.auth != null && (
+        resource.data.clientId == request.auth.uid || isAdmin()
+      );
+      // All writes: admin only
+      allow write:  if isAdmin();
     }
 
     // Settings — public read, admin write

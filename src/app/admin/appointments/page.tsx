@@ -32,6 +32,7 @@ export default function AdminAppointmentsPage() {
   const [loading, setLoading] = useState(true);
   const [showMigrate, setShowMigrate] = useState(false);
   const [migrating,   setMigrating]   = useState(false);
+  const [loadingId,   setLoadingId]   = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([getAllAppointments(), getClinicSettings(), hasLegacyAppointments()]).then(([appts, c, legacy]) => {
@@ -68,46 +69,70 @@ export default function AdminAppointmentsPage() {
   }
 
   async function handleApprove(appt: Appointment) {
-    await updateAppointmentStatus(appt.id, "approved");
-    setAppointments((prev) =>
-      prev.map((a) => (a.id === appt.id ? { ...a, status: "approved" } : a))
-    );
-    if (clinic) {
-      const link = buildWhatsAppApprovalLink({
-        clientPhone: appt.clientPhone,
-        clientName: appt.clientName,
-        serviceName: appt.serviceName,
-        startTime: appt.startTime.toDate(),
-        endTime: appt.endTime.toDate(),
-        clinicAddress: clinic.address,
-      });
-      window.open(link, "_blank");
+    setLoadingId(appt.id + "-approve");
+    try {
+      await updateAppointmentStatus(appt.id, "approved");
+      setAppointments((prev) =>
+        prev.map((a) => (a.id === appt.id ? { ...a, status: "approved" } : a))
+      );
+      if (clinic) {
+        const link = buildWhatsAppApprovalLink({
+          clientPhone: appt.clientPhone,
+          clientName: appt.clientName,
+          serviceName: appt.serviceName,
+          startTime: appt.startTime.toDate(),
+          endTime: appt.endTime.toDate(),
+          clinicAddress: clinic.address,
+        });
+        window.open(link, "_blank");
+      }
+    } catch (err) {
+      console.error("approve failed:", err);
+      alert("שגיאה באישור התור. נסי שנית.");
+    } finally {
+      setLoadingId(null);
     }
   }
 
   async function handleReject(id: string) {
-    await updateAppointmentStatus(id, "rejected");
-    setAppointments((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, status: "rejected" } : a))
-    );
+    setLoadingId(id + "-reject");
+    try {
+      await updateAppointmentStatus(id, "rejected");
+      setAppointments((prev) =>
+        prev.map((a) => (a.id === id ? { ...a, status: "rejected" } : a))
+      );
+    } catch (err) {
+      console.error("reject failed:", err);
+      alert("שגיאה בדחיית התור. נסי שנית.");
+    } finally {
+      setLoadingId(null);
+    }
   }
 
   async function handleCancel(appt: Appointment) {
     if (!confirm(`לבטל את התור של ${appt.clientName}?`)) return;
-    await cancelAppointment(appt.id);
-    setAppointments((prev) =>
-      prev.map((a) => (a.id === appt.id ? { ...a, status: "cancelled" } : a))
-    );
-    if (clinic) {
-      const link = buildWhatsAppCancellationLink({
-        clientPhone:   appt.clientPhone,
-        clientName:    appt.clientName,
-        serviceName:   appt.serviceName,
-        startTime:     appt.startTime.toDate(),
-        endTime:       appt.endTime.toDate(),
-        clinicAddress: clinic.address,
-      });
-      window.open(link, "_blank");
+    setLoadingId(appt.id + "-cancel");
+    try {
+      await cancelAppointment(appt.id);
+      setAppointments((prev) =>
+        prev.map((a) => (a.id === appt.id ? { ...a, status: "cancelled" } : a))
+      );
+      if (clinic) {
+        const link = buildWhatsAppCancellationLink({
+          clientPhone:   appt.clientPhone,
+          clientName:    appt.clientName,
+          serviceName:   appt.serviceName,
+          startTime:     appt.startTime.toDate(),
+          endTime:       appt.endTime.toDate(),
+          clinicAddress: clinic.address,
+        });
+        window.open(link, "_blank");
+      }
+    } catch (err) {
+      console.error("cancel failed:", err);
+      alert("שגיאה בביטול התור. נסי שנית.");
+    } finally {
+      setLoadingId(null);
     }
   }
 
@@ -184,6 +209,7 @@ export default function AdminAppointmentsPage() {
               onApprove={handleApprove}
               onReject={handleReject}
               onCancel={handleCancel}
+              loadingId={loadingId}
             />
           ))}
         </div>
@@ -197,16 +223,22 @@ function AppointmentRow({
   onApprove,
   onReject,
   onCancel,
+  loadingId,
 }: {
   appointment: Appointment;
-  onApprove: (a: Appointment) => void;
-  onReject:  (id: string) => void;
-  onCancel:  (a: Appointment) => void;
+  onApprove:   (a: Appointment) => void;
+  onReject:    (id: string) => void;
+  onCancel:    (a: Appointment) => void;
+  loadingId:   string | null;
 }) {
-  const st = STATUS_LABELS[appointment.status];
-  const start = appointment.startTime.toDate();
-  const isPending  = appointment.status === "pending" || appointment.status === "change_requested";
-  const isApproved = appointment.status === "approved";
+  const st          = STATUS_LABELS[appointment.status];
+  const start       = appointment.startTime.toDate();
+  const isPending   = appointment.status === "pending" || appointment.status === "change_requested";
+  const isApproved  = appointment.status === "approved";
+  const isApproving = loadingId === appointment.id + "-approve";
+  const isRejecting = loadingId === appointment.id + "-reject";
+  const isCanceling = loadingId === appointment.id + "-cancel";
+  const isBusy      = isApproving || isRejecting || isCanceling;
 
   return (
     <div
@@ -238,27 +270,30 @@ function AppointmentRow({
         <div className="flex gap-2">
           <button
             onClick={() => onApprove(appointment)}
-            className="flex-1 py-2 rounded-xl text-xs font-semibold text-white"
+            disabled={isBusy}
+            className="flex-1 py-2 rounded-xl text-xs font-semibold text-white disabled:opacity-50"
             style={{ background: "#10B981" }}
           >
-            ✓ אשר + WhatsApp
+            {isApproving ? "..." : "✓ אשר + WhatsApp"}
           </button>
           <button
             onClick={() => onReject(appointment.id)}
-            className="flex-1 py-2 rounded-xl text-xs font-semibold border-2"
+            disabled={isBusy}
+            className="flex-1 py-2 rounded-xl text-xs font-semibold border-2 disabled:opacity-50"
             style={{ borderColor: "#EF4444", color: "#EF4444" }}
           >
-            ✕ דחה
+            {isRejecting ? "..." : "✕ דחה"}
           </button>
         </div>
       )}
       {isApproved && (
         <button
           onClick={() => onCancel(appointment)}
-          className="text-xs px-3 py-1.5 rounded-xl border"
+          disabled={isBusy}
+          className="text-xs px-3 py-1.5 rounded-xl border disabled:opacity-50"
           style={{ borderColor: "#EF4444", color: "#EF4444" }}
         >
-          ✕ בטל + WhatsApp
+          {isCanceling ? "..." : "✕ בטל + WhatsApp"}
         </button>
       )}
     </div>
