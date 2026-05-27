@@ -29,12 +29,16 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await applyPersistence();
-      await signInWithGoogle(); // redirects the entire page to Google — never returns
+      const result = await signInWithGoogle();
+      if (result) {
+        // Popup succeeded — navigate manually
+        router.push("/");
+      }
+      // If result is undefined, redirect flow was triggered (popup blocked) — page navigates away
     } catch {
       setError("שגיאה בהתחברות עם Google");
-      setLoading(false); // only runs if something fails before redirect
+      setLoading(false);
     }
-    // No finally — page navigates away, so loading state doesn't matter
   }
 
   async function handleEmail(e: React.FormEvent) {

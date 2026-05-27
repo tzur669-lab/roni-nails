@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import {
   onAuthStateChanged,
+  signInWithPopup,
   signInWithRedirect,
   getRedirectResult,
   GoogleAuthProvider,
@@ -20,7 +21,7 @@ export function useAuth() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Handle Google redirect result (fires after returning from Google OAuth page)
+    // Handle redirect result in case popup was blocked and redirect was used as fallback
     getRedirectResult(auth)
       .then(async (result) => {
         if (result?.user) {
@@ -64,9 +65,28 @@ export function useAuth() {
   async function signInWithGoogle() {
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: "select_account" });
-    // Redirect the entire tab to Google — no popup, works with all popup blockers
-    await signInWithRedirect(auth, provider);
-    // Code below never runs — page navigates away
+    try {
+      // Try popup first — instant, no page reload
+      const result = await signInWithPopup(auth, provider);
+      const u = await getUser(result.user.uid);
+      if (!u) {
+        await createUser(result.user.uid, {
+          name: result.user.displayName ?? "",
+          email: result.user.email ?? "",
+          phone: "",
+          role: result.user.uid === ADMIN_UID ? "admin" : "client",
+        }).catch(console.error);
+      }
+      return result.user;
+    } catch (err: unknown) {
+      const code = (err as { code?: string })?.code;
+      if (code === "auth/popup-blocked" || code === "auth/popup-cancelled-by-user") {
+        // Popup was blocked — fall back to redirect
+        await signInWithRedirect(auth, provider);
+        return; // page navigates away
+      }
+      throw err;
+    }
   }
 
   async function signInWithEmail(email: string, password: string) {
